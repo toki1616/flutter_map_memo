@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/router/app_router.dart';
+import 'core/router/app_router_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'map/data/datasources/map_tile_cache_service.dart';
 import 'setting/presentation/providers/text_scale_provider.dart';
@@ -31,12 +31,15 @@ class MyApp extends ConsumerWidget {
     // 列挙型の状態を監視し、内包されている倍率（scale）を取り出します
     final textScaleType = ref.watch(textScaleProvider);
 
+    // ➔ appRouterをグローバル変数からRiverpodのProvider経由での取得に変更（watchすることで安全に連動）
+    final router = ref.watch(appRouterProvider);
+
     return MaterialApp.router(
       title: 'フィールドマップアプリ',
       theme: AppTheme.getLight(textScaleType.scale),
       darkTheme: AppTheme.getDark(textScaleType.scale),
-      themeMode: ThemeMode.system,  // 端末の設定に合わせて自動でライト・ダークを切り替えます
-      routerConfig: appRouter,      // 共通のルーティング設定を適用します
+      themeMode: ThemeMode.system, // 端末の設定に合わせて自動でライト・ダークを切り替えます
+      routerConfig: router, // 共通のルーティング設定を適用します
     );
   }
 }
