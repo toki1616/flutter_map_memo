@@ -117,6 +117,23 @@ class MapScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+
+                  // 縮尺バー（Scalebar）
+                  Scalebar(
+                    alignment: Alignment.topLeft,
+                    padding: EdgeInsets.only(
+                      top: 16 * textScaleType.scale,
+                      left: 16 * textScaleType.scale,
+                    ),
+                    textStyle: TextStyle(
+                      color: Colors.black,
+                      // テーマ全体の拡大倍率（textScaleType.scale）を適用して動的にスケール
+                      fontSize: 12 * textScaleType.scale,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    lineColor: Colors.black,
+                    strokeWidth: 2,
+                  ),
                 ],
               ),
 
@@ -130,11 +147,24 @@ class MapScreen extends ConsumerWidget {
                 ),
               ),
 
-              // 左上にフローティング配置する高精度な緯度経度・ズーム表示ウィジェット
-              Positioned(
-                top: 16 * textScaleType.scale,
-                left: 16 * textScaleType.scale,
-                child: const CoordinateDisplay(),
+              // 緯度経度・ズーム表示ウィジェット
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      top: 16 * textScaleType.scale,
+                      right: 16 * textScaleType.scale,
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        CoordinateDisplay(),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
