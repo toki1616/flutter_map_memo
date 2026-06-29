@@ -3,10 +3,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
 import '../providers/map_selection_provider.dart';
 import '../providers/map_url_source_provider.dart';
+
+import '../widgets/crosshair_painter.dart';
 
 /// flutter_mapパッケージを使用して実際に地図を画面に描画するUIファイル
 /// プロバイダーから現在の選択マップやマップソース一覧を読み込み、アプリ全体の表示サイズ設定と連動してヘッダーのドロップダウンメニューの大きさも自動調節
@@ -21,7 +24,7 @@ class MapScreen extends ConsumerWidget {
     final currentUrlMap = ref.watch(mapSelectionProvider);
 
     // 表示サイズ設定を監視し、テキストテーマを取得
-    ref.watch(textScaleProvider);
+    final textScaleType = ref.watch(textScaleProvider);
     final textTheme = Theme.of(context).textTheme;
 
     // 非同期データ（mapSourcesAsync）の状態（ローディング、エラー、データ成功）に応じてUIを分岐処理
@@ -76,6 +79,7 @@ class MapScreen extends ConsumerWidget {
               maxZoom: AppConstants.maxZoom,
             ),
             children: [
+              // Map
               TileLayer(
                 urlTemplate: currentUrlMap.urlTemplate,
                 userAgentPackageName: 'com.example.map_app',
@@ -94,6 +98,16 @@ class MapScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+
+              // 画面中央の十字
+              Center(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    size: Size(32 * textScaleType.scale, 32 * textScaleType.scale),
+                    painter: CrosshairPainter(),
+                  ),
+                ),
+              ),
             ],
           ),
         );
