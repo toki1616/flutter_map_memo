@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// アプリのデザインや配色を定義するファイル
-/// ライトモードとダークモードのテーマデータを管理しており、カードの形状や入力フォームの枠線、ボタンの色などをMaterial3のデザイン規約に基づいて一括設定
+/// ライトモードとダークモードのテーマデータを管理しており、引数として受け取ったサイズ倍率（textScale）を文字サイズやボタンに掛け合わせることでアプリ全体を一括拡大
 class AppTheme {
   static const Color primary = Color(0xFF2D6A4F);
   static const Color primaryLight = Color(0xFF52B788);
@@ -12,79 +12,119 @@ class AppTheme {
   static const Color danger = Color(0xFFD62828);
   static const Color trackColor = Color(0xFFE07B39);
 
-  static ThemeData get light => ThemeData(
-        useMaterial3: true,
-        colorScheme: const ColorScheme(
-          brightness: Brightness.light,
-          primary: primary,
-          onPrimary: Colors.white,
-          secondary: accent,
-          onSecondary: Colors.white,
-          error: danger,
-          onError: Colors.white,
-          surface: surface,
-          onSurface: onSurface,
-        ),
-        scaffoldBackgroundColor: surface,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: false,
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-        ),
-        // ✅ 修正: CardTheme → CardThemeData
-        cardTheme: CardThemeData(
+  static ThemeData getLight(double textScale) {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: const ColorScheme(
+        brightness: Brightness.light,
+        primary: primary,
+        onPrimary: Colors.white,
+        secondary: accent,
+        onSecondary: Colors.white,
+        error: danger,
+        onError: Colors.white,
+        surface: surface,
+        onSurface: onSurface,
+      ),
+      scaffoldBackgroundColor: surface,
+      appBarTheme: AppBarTheme(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
           color: Colors.white,
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          fontSize: 18 * textScale,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
         ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: primary.withOpacity(0.3)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: primary, width: 2),
-          ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+      ),
+      cardTheme: CardThemeData(
+        color: Colors.white,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
-        chipTheme: ChipThemeData(
-          backgroundColor: primaryLight.withOpacity(0.15),
-          selectedColor: primary,
-          labelStyle: const TextStyle(fontSize: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: primary.withValues(alpha: 0.3)),
         ),
-      );
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: primary, width: 2),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: primaryLight.withValues(alpha: 0.15),
+        selectedColor: primary,
+        labelStyle: TextStyle(fontSize: 12 * textScale),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: Size(64 * textScale, 40 * textScale),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16 * textScale,
+            vertical: 8 * textScale,
+          ),
+          textStyle: TextStyle(fontSize: 14 * textScale),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: TextStyle(fontSize: 14 * textScale),
+      ),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(fontSize: 16 * textScale),
+        bodyMedium: TextStyle(fontSize: 14 * textScale),
+        labelLarge: TextStyle(fontSize: 14 * textScale),
+      ),
+    );
+  }
 
-  static ThemeData get dark => ThemeData(
-        useMaterial3: true,
-        colorScheme: const ColorScheme(
-          brightness: Brightness.dark,
-          primary: primaryLight,
-          onPrimary: Colors.black,
-          secondary: accent,
-          onSecondary: Colors.black,
-          error: danger,
-          onError: Colors.white,
-          surface: Color(0xFF1C1C1E),
-          onSurface: Colors.white,
+  static ThemeData getDark(double textScale) {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: const ColorScheme(
+        brightness: Brightness.dark,
+        primary: primaryLight,
+        onPrimary: Colors.black,
+        secondary: accent,
+        onSecondary: Colors.black,
+        error: danger,
+        onError: Colors.white,
+        surface: Color(0xFF1C1C1E),
+        onSurface: Colors.white,
+      ),
+      scaffoldBackgroundColor: const Color(0xFF1C1C1E),
+      appBarTheme: AppBarTheme(
+        titleTextStyle: TextStyle(
+          fontSize: 18 * textScale,
         ),
-        scaffoldBackgroundColor: const Color(0xFF1C1C1E),
-      );
+      ),
+      chipTheme: ChipThemeData(
+        labelStyle: TextStyle(fontSize: 12 * textScale),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: Size(64 * textScale, 40 * textScale),
+          textStyle: TextStyle(fontSize: 14 * textScale),
+        ),
+      ),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(fontSize: 16 * textScale),
+        bodyMedium: TextStyle(fontSize: 14 * textScale),
+        labelLarge: TextStyle(fontSize: 14 * textScale),
+      ),
+    );
+  }
 }

@@ -8,12 +8,12 @@ class AppConstants {
   static const String trackLogFolderName = 'track_log';
 
   // File names
-  static const String pinFileName = 'マップのピン.json';
+  static const String pinFileName = 'pin.json';
   static const String trackLogFileName = 'track_log.json';
 
   // App internal folder (path_provider)
   static const String settingFolderName = 'setting';
-  static const String settingFileName = '設定ファイル.json';
+  static const String settingFileName = 'settings.json';
 
   // Tile image extension
   static const String tileExtension = '.png';
