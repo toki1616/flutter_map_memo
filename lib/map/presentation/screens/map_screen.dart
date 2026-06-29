@@ -12,15 +12,38 @@ import '../providers/map_url_source_provider.dart';
 
 import '../widgets/coordinate_display.dart';
 import '../widgets/crosshair_painter.dart';
+import '../widgets/map_fab_buttons.dart';
 
 /// flutter_mapパッケージを使用して実際に地図を画面に描画するUIファイル
 /// mapCameraProviderと連携し、ユーザーの地図操作（スクロール・ズーム）による位置変化をリアルタイムにプロバイダーへ同期
 /// Stack構造を利用して、地図の前面に画面中央の十字照準（Crosshair）および最新の緯度経度を示すCoordinateDisplayをレイヤー表示する設計
-class MapScreen extends ConsumerWidget {
+class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends ConsumerState<MapScreen> {
+  // ➔ コントローラーをStateクラス内で遅延初期化（late）として管理
+  // 画面のリビルドや親の再生成が発生しても、このStateオブジェクトが存続する限りインスタンスは完全に永続化されます
+  late final MapController _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void dispose() {
+    // メモリリークを防ぐため、画面破棄時にコントローラーも適切に解放
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // AsyncValue<List<MapUrlConfig>> として取得されるマップソースを監視
     final mapSourcesAsync = ref.watch(mapUrlSourceProvider);
     // 現在選択されているマップ設定（MapUrlConfig?）を監視
@@ -78,6 +101,8 @@ class MapScreen extends ConsumerWidget {
             children: [
               // 地図本体レイヤー
               FlutterMap(
+                // 永続化されたコントローラーを安全にセット
+                mapController: _mapController,
                 options: MapOptions(
                   // 初期位置と初期ズームをプロバイダーの保持データから取得
                   initialCenter: LatLng(
@@ -163,6 +188,20 @@ class MapScreen extends ConsumerWidget {
                         CoordinateDisplay(),
                       ],
                     ),
+                  ),
+                ),
+              ),
+
+              // 右下にフローティング配置するズームイン・ズームアウトボタン
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: 16 * textScaleType.scale,
+                      right: 16 * textScaleType.scale,
+                    ),
+                    child: MapFabButtons(mapController: _mapController), // コントローラーをアタッチ
                   ),
                 ),
               ),
