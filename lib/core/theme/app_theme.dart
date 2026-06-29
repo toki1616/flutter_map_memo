@@ -55,7 +55,7 @@ class AppTheme {
           fillColor: Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: primary.withOpacity(0.3)),
+            borderSide: BorderSide(color: primary.withValues(alpha: 0.3)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -63,7 +63,7 @@ class AppTheme {
           ),
         ),
         chipTheme: ChipThemeData(
-          backgroundColor: primaryLight.withOpacity(0.15),
+          backgroundColor: primaryLight.withValues(alpha: 0.15),
           selectedColor: primary,
           labelStyle: const TextStyle(fontSize: 12),
           shape: RoundedRectangleBorder(
