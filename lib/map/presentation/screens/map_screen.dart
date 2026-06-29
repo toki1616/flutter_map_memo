@@ -6,13 +6,16 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
+import '../providers/map_camera_provider.dart';
 import '../providers/map_selection_provider.dart';
 import '../providers/map_url_source_provider.dart';
 
+import '../widgets/coordinate_display.dart';
 import '../widgets/crosshair_painter.dart';
 
 /// flutter_mapパッケージを使用して実際に地図を画面に描画するUIファイル
-/// プロバイダーから現在の選択マップやマップソース一覧を読み込み、アプリ全体の表示サイズ設定と連動してヘッダーのドロップダウンメニューの大きさも自動調節
+/// mapCameraProviderと連携し、ユーザーの地図操作（スクロール・ズーム）による位置変化をリアルタイムにプロバイダーへ同期
+/// Stack構造を利用して、地図の前面に画面中央の十字照準（Crosshair）および最新の緯度経度を示すCoordinateDisplayをレイヤー表示する設計
 class MapScreen extends ConsumerWidget {
   const MapScreen({super.key});
 
@@ -71,35 +74,53 @@ class MapScreen extends ConsumerWidget {
               const SizedBox(width: 16),
             ],
           ),
-          body: FlutterMap(
-            options: const MapOptions(
-              initialCenter: LatLng(35.681236, 139.767125),
-              initialZoom: AppConstants.defaultZoom,
-              minZoom: AppConstants.minZoom,
-              maxZoom: AppConstants.maxZoom,
-            ),
+          body: Stack(
             children: [
-              // Map
-              TileLayer(
-                urlTemplate: currentUrlMap.urlTemplate,
-                userAgentPackageName: 'com.example.map_app',
-                tileProvider: FMTCTileProvider(
-                  stores: const {
-                    'custom_url_map_cache': BrowseStoreStrategy.readUpdateCreate,
+              // 地図本体レイヤー
+              FlutterMap(
+                options: MapOptions(
+                  // 初期位置と初期ズームをプロバイダーの保持データから取得
+                  initialCenter: LatLng(
+                    ref.read(mapCameraProvider).latitude,
+                    ref.read(mapCameraProvider).longitude,
+                  ),
+                  initialZoom: ref.read(mapCameraProvider).zoom,
+                  minZoom: AppConstants.minZoom,
+                  maxZoom: AppConstants.maxZoom,
+
+                  // ユーザーが地図を動かした瞬間に、中心座標とズームレベルをプロバイダーへ即座に書き込み
+                  onPositionChanged: (camera, hasGesture) {
+                    ref.read(mapCameraProvider.notifier).updateCamera(
+                      camera.center.latitude,
+                      camera.center.longitude,
+                      camera.zoom,
+                    );
                   },
                 ),
-              ),
-              if (currentUrlMap.attribution != null)
-                RichAttributionWidget(
-                  attributions: [
-                    TextSourceAttribution(
-                      currentUrlMap.attribution!,
-                      prependCopyright: false,
+                children: [
+                  // URL Map Layer
+                  TileLayer(
+                    urlTemplate: currentUrlMap.urlTemplate,
+                    userAgentPackageName: 'com.example.map_app',
+                    tileProvider: FMTCTileProvider(
+                      stores: const {
+                        'custom_url_map_cache': BrowseStoreStrategy.readUpdateCreate,
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                  if (currentUrlMap.attribution != null)
+                    RichAttributionWidget(
+                      attributions: [
+                        TextSourceAttribution(
+                          currentUrlMap.attribution!,
+                          prependCopyright: false,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
 
-              // 画面中央の十字
+              // 画面中央の十字レイヤー
               Center(
                 child: IgnorePointer(
                   child: CustomPaint(
@@ -107,6 +128,13 @@ class MapScreen extends ConsumerWidget {
                     painter: CrosshairPainter(),
                   ),
                 ),
+              ),
+
+              // 左上にフローティング配置する高精度な緯度経度・ズーム表示ウィジェット
+              Positioned(
+                top: 16 * textScaleType.scale,
+                left: 16 * textScaleType.scale,
+                child: const CoordinateDisplay(),
               ),
             ],
           ),
