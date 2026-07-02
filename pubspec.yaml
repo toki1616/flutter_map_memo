@@ -61,6 +61,12 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # アプリIDを一括変更するための開発用パッケージ
+  change_app_package_name: ^1.1.0
+
+  # アプリアイコンを一括変更するための開発用パッケージ
+  flutter_launcher_icons: ^0.13.1
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -102,3 +108,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  ios: true
+
+  # Android用の詳細設定
+  android: "launcher_icon" # 生成されるアイコンのファイル名を指定
+  # 最近のAndroid（ adaptive icon ）向けに背景を白などに指定すると綺麗に丸く収まります
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"

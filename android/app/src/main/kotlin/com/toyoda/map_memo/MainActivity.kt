@@ -1,4 +1,4 @@
-package com.example.flutter_map_memo
+package com.toyoda.map_memo
 
 import io.flutter.embedding.android.FlutterActivity
 
