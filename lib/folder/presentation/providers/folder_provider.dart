@@ -10,7 +10,6 @@ import '../../domain/usecases/folder_usecases.dart';
 // ── DI ───────────────────────────────────────────────────────────────────
 
 final folderLocalDataSourceProvider = Provider<FolderLocalDataSource>((ref) {
-  // settings.json への書き込み・削除を settingStorageProvider 経由で行う
   return createFolderLocalDataSource(
     onPathSaved: (path) async {
       await ref.read(settingStorageProvider.notifier).saveFolderPath(path);
@@ -39,32 +38,45 @@ final clearFolderUseCaseProvider = Provider(
 
 /// 選択中フォルダの状態を管理する AsyncNotifier
 ///
-/// 起動時の復元フロー:
-///   iOS    : IosDirectoryService.restoreDirectoryAccess()
-///            → ブックマークからアクセス権を取得 → 最新パスを返す
-///   Android: settingStorageProvider の folderPath を読み出す
-///            → そのパスが実在すれば FolderSelection を組み立てる
+/// 【iOS ローディング無限ループの原因と対策】
+///
+/// 問題:
+///   build() が ref.watch(settingStorageProvider.future) を使っていると、
+///   pickFolder() → onPathResolved → saveFolderPath() → settingStorageProvider 更新
+///   → build() 再実行 → AsyncLoading に戻る → 永遠にローディング
+///
+/// 対策:
+///   build() では ref.watch ではなく ref.read で settingStorageProvider を
+///   一度だけ読み、その後は watch しない。
+///   これにより settingStorageProvider が更新されても build() が再実行されない。
 class FolderNotifier extends AsyncNotifier<FolderSelection?> {
   @override
   Future<FolderSelection?> build() async {
-    // settingStorageProvider のロードが完了するまで待つ
-    final settings = await ref.watch(settingStorageProvider.future);
+    // ⚠️ ref.watch ではなく ref.read を使う
+    // watch にすると saveFolderPath() 後に build() が再実行されて
+    // AsyncLoading ループが発生するため
+    final settings = await ref.read(settingStorageProvider.future);
 
-    // Android は settings.json の folderPath を savedPath として渡す
-    // iOS は null を渡す（内部でブックマーク復元が走る）
     return ref
         .read(loadSavedFolderUseCaseProvider)
         .call(const NoParams(), savedPath: settings.folderPath);
   }
 
   /// OS 標準ダイアログでフォルダを選択する
-  /// 選択後は自動的に settings.json に保存される
+  ///
+  /// iOS の場合:
+  ///   AppDelegate.swift → UIDocumentPickerViewController を表示
+  ///   → 選択後ブックマーク保存 → パス取得 → onPathResolved → saveFolderPath()
+  ///   → settingStorageProvider 更新
+  ///   ※ build() は ref.read を使っているため再実行されず
+  ///      ここで state = AsyncData(result) を明示的にセットして完了させる
   Future<void> pickFolder() async {
     state = const AsyncLoading();
     try {
       final result = await ref
           .read(pickFolderUseCaseProvider)
           .call(const NoParams());
+      // キャンセル時は null → AsyncData(null) にして Loading を解除する
       state = AsyncData(result);
     } catch (e, st) {
       state = AsyncError(e, st);
