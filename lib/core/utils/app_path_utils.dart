@@ -6,6 +6,15 @@ import '../constants/app_constants.dart';
 // アプリケーション内で使用するすべての物理パスの生成ロジックを一元管理するユーティリティファイル
 // アプリ内保存領域（Documents）をベースに、save_dataやsettingなどの階層構造を安全に組み立てて返却
 class AppPathUtils {
+  // ユーザーが選択した任意のカスタムデータセットフォルダへのパスを静的に管理する変数
+  static String? _currentDatasetPath;
+  static String? get currentDatasetPath => _currentDatasetPath;
+
+  // データセットの基準ルートパスを初期化するメソッド
+  static void initializeDatasetPath(String? savedPath) {
+    _currentDatasetPath = savedPath;
+  }
+
   // アプリ専用のDocumentsディレクトリを取得
   static Future<Directory> _getAppDocsDir() async {
     return await getApplicationDocumentsDirectory();

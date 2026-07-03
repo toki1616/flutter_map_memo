@@ -44,6 +44,12 @@ dependencies:
   # 同値性の評価（AppFailure用）
   equatable: ^2.0.5
 
+  # フォルダ選択
+  file_picker: ^8.0.0
+
+  # 一意のID
+  uuid: ^4.3.3
+
   # Map
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
