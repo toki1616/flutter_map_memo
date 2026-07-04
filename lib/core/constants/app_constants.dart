@@ -22,4 +22,16 @@ class AppConstants {
   static const double defaultZoom = 15.0;
   static const double minZoom = 1.0;
   static const double maxZoom = 20.0;
+
+  // Pin Color
+  static const List<String> pinColors = [
+    '#E63946',
+    '#2D6A4F',
+    '#D4A017',
+    '#4361EE',
+    '#9B2226',
+    '#5C677D',
+    '#FF9F1C',
+    '#2EC4B6',
+  ];
 }
