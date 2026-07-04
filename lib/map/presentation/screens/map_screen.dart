@@ -7,12 +7,16 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../folder/presentation/providers/folder_provider.dart';
+import '../../../location/domain/entities/location_data.dart';
+import '../../../location/presentation/providers/location_provider.dart';
 import '../../../pin/presentation/widgets/add_pin_bottom_sheet.dart';
 import '../../../pin/presentation/widgets/pin_marker_layer.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
+
 import '../providers/map_camera_provider.dart';
 import '../providers/map_selection_provider.dart';
 import '../providers/map_url_source_provider.dart';
+
 import '../widgets/coordinate_display.dart';
 import '../widgets/crosshair_painter.dart';
 import '../widgets/map_fab_buttons.dart';
@@ -20,6 +24,7 @@ import '../widgets/map_fab_buttons.dart';
 /// マップ画面
 /// - URL タイル表示（flutter_map_tile_caching キャッシュ付き）
 /// - ピンマーカー表示（PinMarkerLayer）
+/// - 現在地マーカー表示（location/ の locationStreamProvider を参照）
 /// - ピン追加 FAB（マップ中央座標に追加）
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -57,9 +62,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final textTheme = Theme.of(context).textTheme;
     final scale = textScaleType.scale;
 
+    // location/ の StreamProvider を参照して現在地を取得
+    final locationAsync = ref.watch(locationStreamProvider);
+    final currentLocation = locationAsync.valueOrNull;
+
     return mapSourcesAsync.when(
       loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, __) => const Scaffold(
           body: Center(child: Text('マップの読み込みに失敗しました'))),
       data: (availableUrlMaps) {
@@ -74,6 +83,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           appBar: AppBar(
             title: const Text('フィールドマップ'),
             actions: [
+              // 💡 現在地へ移動ボタン（取得済みのときのみ表示）
+              if (currentLocation != null)
+                IconButton(
+                  icon: const Icon(Icons.my_location),
+                  tooltip: '現在地へ移動',
+                  onPressed: () {
+                    _mapController.move(
+                      LatLng(currentLocation.latitude,
+                          currentLocation.longitude),
+                      _mapController.camera.zoom,
+                    );
+                  },
+                ),
               // マップソース切替ドロップダウン
               DropdownButton<String>(
                 value: currentUrlMap.id,
@@ -115,10 +137,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   maxZoom: AppConstants.maxZoom,
                   onPositionChanged: (camera, hasGesture) {
                     ref.read(mapCameraProvider.notifier).updateCamera(
-                          camera.center.latitude,
-                          camera.center.longitude,
-                          camera.zoom,
-                        );
+                      camera.center.latitude,
+                      camera.center.longitude,
+                      camera.zoom,
+                    );
                   },
                 ),
                 children: [
@@ -129,7 +151,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     tileProvider: FMTCTileProvider(
                       stores: const {
                         'custom_url_map_cache':
-                            BrowseStoreStrategy.readUpdateCreate,
+                        BrowseStoreStrategy.readUpdateCreate,
                       },
                     ),
                   ),
@@ -155,6 +177,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     lineColor: Colors.black,
                     strokeWidth: 2,
                   ),
+
+                  // 💡 現在地マーカー（location/ の LocationData エンティティを使用）
+                  if (currentLocation != null)
+                    _CurrentLocationLayer(location: currentLocation),
+
                   // ピンマーカーレイヤー（フォルダ選択済みのみ）
                   if (folder != null) const PinMarkerLayer(),
                 ],
@@ -237,7 +264,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                               Expanded(
                                 child: Text(
                                   '地図を動かして中央（十字）の位置に合わせ、'
-                                  'ピンボタンを押して追加',
+                                      'ピンボタンを押して追加',
                                   style: textTheme.bodyMedium
                                       ?.copyWith(color: Colors.white),
                                 ),
@@ -277,7 +304,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                   isScrollControlled: true,
                                   builder: (_) => Padding(
                                     padding:
-                                        MediaQuery.of(context).viewInsets,
+                                    MediaQuery.of(context).viewInsets,
                                     child: AddPinBottomSheet(
                                       position: LatLng(
                                           cam.latitude, cam.longitude),
@@ -307,6 +334,62 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+// ── 現在地マーカーレイヤー ─────────────────────────────────────────────────
+
+/// 💡 現在地を青い点 + 精度円で表示する
+/// location/ の LocationData エンティティを受け取り描画する
+class _CurrentLocationLayer extends StatelessWidget {
+  final LocationData location;
+  const _CurrentLocationLayer({required this.location});
+
+  @override
+  Widget build(BuildContext context) {
+    final point = LatLng(location.latitude, location.longitude);
+
+    return Stack(
+      children: [
+        // 精度を示す薄い青円（半径 = accuracy メートル）
+        CircleLayer(
+          circles: [
+            CircleMarker(
+              point: point,
+              radius: location.accuracy,
+              useRadiusInMeter: true,
+              color: Colors.blue.withValues(alpha: 0.15),
+              borderColor: Colors.blue.withValues(alpha: 0.4),
+              borderStrokeWidth: 1,
+            ),
+          ],
+        ),
+        // 現在地を示す青い点マーカー
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: point,
+              width: 20,
+              height: 20,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withValues(alpha: 0.4),
+                      blurRadius: 6,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
