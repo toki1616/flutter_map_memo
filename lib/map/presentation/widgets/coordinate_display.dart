@@ -15,9 +15,7 @@ class CoordinateDisplay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mapCamera = ref.watch(mapCameraProvider);
-    // location/ の StreamProvider を参照
     final locationAsync = ref.watch(locationStreamProvider);
-    final currentLocation = locationAsync.valueOrNull;
 
     final scale = ref.watch(textScaleProvider).scale;
     final textTheme = Theme.of(context).textTheme;
