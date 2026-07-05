@@ -23,7 +23,7 @@ class PinMarkerLayer extends ConsumerWidget {
       data: (pins) => MarkerLayer(
         markers: pins.map((pin) {
           final color =
-          Color(int.parse(pin.colorHex.replaceFirst('#', '0xFF')));
+              Color(int.parse(pin.colorHex.replaceFirst('#', '0xFF')));
           return Marker(
             point: LatLng(pin.latitude, pin.longitude),
             width: 40 * scale,
@@ -42,7 +42,8 @@ class PinMarkerLayer extends ConsumerWidget {
     );
   }
 
-  void _showDetail(BuildContext context, WidgetRef ref, PinData pin, double scale) {
+  void _showDetail(
+      BuildContext context, WidgetRef ref, PinData pin, double scale) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -50,12 +51,12 @@ class PinMarkerLayer extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
-        return PinDetailSheet(pin: pin, scale: scale);
-      },
+      builder: (context) => PinDetailSheet(pin: pin, scale: scale),
     );
   }
 }
+
+// ── ピン詳細・編集・削除シート ────────────────────────────────────────────
 
 class PinDetailSheet extends ConsumerStatefulWidget {
   final PinData pin;
@@ -76,7 +77,6 @@ class _PinDetailSheetState extends ConsumerState<PinDetailSheet> {
   late final TextEditingController _memoCtrl;
   bool _isEditing = false;
 
-  // 💡 編集後にボトムシート内の文字を即時反映させるための内部状態
   late String _currentTitle;
   late String _currentMemo;
 
@@ -85,8 +85,6 @@ class _PinDetailSheetState extends ConsumerState<PinDetailSheet> {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.pin.title);
     _memoCtrl = TextEditingController(text: widget.pin.memo);
-
-    // 初期値をセット
     _currentTitle = widget.pin.title;
     _currentMemo = widget.pin.memo;
   }
@@ -96,6 +94,54 @@ class _PinDetailSheetState extends ConsumerState<PinDetailSheet> {
     _titleCtrl.dispose();
     _memoCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveEdit() async {
+    final newTitle = _titleCtrl.text.trim();
+    final newMemo = _memoCtrl.text.trim();
+    if (newTitle.isEmpty) return;
+
+    final updatedPin = widget.pin.copyWith(title: newTitle, memo: newMemo);
+
+    // UI を即時反映してから裏で保存
+    setState(() {
+      _currentTitle = newTitle;
+      _currentMemo = newMemo;
+      _isEditing = false;
+    });
+    await ref.read(pinProvider.notifier).updatePin(updatedPin);
+  }
+
+  Future<void> _delete() async {
+    // 確認ダイアログを表示
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ピンを削除'),
+        content: Text(
+          '「${_currentTitle.isEmpty ? '無題のピン' : _currentTitle}」を削除しますか？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              '削除',
+              style: TextStyle(color: AppTheme.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    // ボトムシートを閉じてからピンを削除する
+    if (mounted) Navigator.pop(context);
+    await ref.read(pinProvider.notifier).deletePin(widget.pin.id);
   }
 
   @override
@@ -110,95 +156,95 @@ class _PinDetailSheetState extends ConsumerState<PinDetailSheet> {
       builder: (context, ctrl) => SafeArea(
         child: Column(
           children: [
+            // ── ヘッダー（タイトル + 編集 / 削除ボタン）──────────────────
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
               child: Row(
                 children: [
+                  // タイトル（編集中はTextField）
                   Expanded(
                     child: _isEditing
                         ? TextField(
-                      controller: _titleCtrl,
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18 * widget.scale,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'タイトル',
-                        border: OutlineInputBorder(),
-                      ),
-                    )
+                            controller: _titleCtrl,
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18 * widget.scale,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'タイトル',
+                              border: OutlineInputBorder(),
+                            ),
+                          )
                         : Text(
-                      _currentTitle.isEmpty ? '無題のピン' : _currentTitle,
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18 * widget.scale,
-                      ),
-                    ),
+                            _currentTitle.isEmpty ? '無題のピン' : _currentTitle,
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18 * widget.scale,
+                            ),
+                          ),
                   ),
+
+                  // 編集 / 保存ボタン
                   IconButton(
-                    icon: Icon(_isEditing ? Icons.check : Icons.edit),
+                    icon: Icon(_isEditing ? Icons.check : Icons.edit_outlined),
+                    tooltip: _isEditing ? '保存' : '編集',
                     onPressed: () async {
                       if (_isEditing) {
-                        final newTitle = _titleCtrl.text.trim();
-                        final newMemo = _memoCtrl.text.trim();
-
-                        if (newTitle.isEmpty) return;
-
-                        final updatedPin = widget.pin.copyWith(
-                          title: newTitle,
-                          memo: newMemo,
-                        );
-
-                        // 💡 コントローラーに入力されたテキストをその場で内部状態に反映させて非編集モードに戻す（これで一瞬で画面が切り替わります）
-                        setState(() {
-                          _currentTitle = newTitle;
-                          _currentMemo = newMemo;
-                          _isEditing = false;
-                        });
-
-                        // 💡 裏側で永続化保存（Riverpodへの通知とファイル書き込み）を非同期実行
-                        await ref.read(pinProvider.notifier).updatePin(updatedPin);
+                        await _saveEdit();
                       } else {
-                        setState(() {
-                          _isEditing = true;
-                        });
+                        setState(() => _isEditing = true);
                       }
                     },
                   ),
+
+                  // 削除ボタン（編集中は非表示）
+                  if (!_isEditing)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppTheme.danger,
+                      ),
+                      tooltip: 'ピンを削除',
+                      onPressed: _delete,
+                    ),
                 ],
               ),
             ),
+
+            const Divider(height: 1),
+
+            // ── メモ ─────────────────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 controller: ctrl,
                 padding: const EdgeInsets.all(16),
                 child: _isEditing
                     ? TextField(
-                  controller: _memoCtrl,
-                  maxLines: null,
-                  style: textTheme.bodyMedium,
-                  decoration: const InputDecoration(
-                    labelText: 'メモ',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                )
+                        controller: _memoCtrl,
+                        maxLines: null,
+                        style: textTheme.bodyMedium,
+                        decoration: const InputDecoration(
+                          labelText: 'メモ',
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                        ),
+                      )
                     : Text(
-                  _currentMemo.isEmpty
-                      ? 'メモなし'
-                      : _currentMemo,
-                  style: _currentMemo.isEmpty
-                      ? textTheme.bodyMedium
-                      ?.copyWith(color: AppTheme.muted)
-                      : textTheme.bodyMedium,
-                ),
+                        _currentMemo.isEmpty ? 'メモなし' : _currentMemo,
+                        style: _currentMemo.isEmpty
+                            ? textTheme.bodyMedium
+                                ?.copyWith(color: AppTheme.muted)
+                            : textTheme.bodyMedium,
+                      ),
               ),
             ),
+
+            // ── 座標 ─────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
                 '${widget.pin.latitude.toStringAsFixed(6)}, '
-                    '${widget.pin.longitude.toStringAsFixed(6)}',
+                '${widget.pin.longitude.toStringAsFixed(6)}',
                 style: textTheme.bodyMedium
                     ?.copyWith(color: AppTheme.muted, fontSize: 11),
               ),

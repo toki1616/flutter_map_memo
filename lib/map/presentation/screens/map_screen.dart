@@ -7,12 +7,16 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../folder/presentation/providers/folder_provider.dart';
+import '../../../location/domain/entities/location_data.dart';
+import '../../../location/presentation/providers/location_provider.dart';
 import '../../../pin/presentation/widgets/add_pin_bottom_sheet.dart';
 import '../../../pin/presentation/widgets/pin_marker_layer.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
+
 import '../providers/map_camera_provider.dart';
 import '../providers/map_selection_provider.dart';
 import '../providers/map_url_source_provider.dart';
+
 import '../widgets/coordinate_display.dart';
 import '../widgets/crosshair_painter.dart';
 import '../widgets/map_fab_buttons.dart';
@@ -20,6 +24,8 @@ import '../widgets/map_fab_buttons.dart';
 /// マップ画面
 /// - URL タイル表示（flutter_map_tile_caching キャッシュ付き）
 /// - ピンマーカー表示（PinMarkerLayer）
+/// - 現在地マーカー表示（location/ の locationStreamProvider を参照）
+/// - 現在地追従モード（_isFollowingLocation）
 /// - ピン追加 FAB（マップ中央座標に追加）
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -36,6 +42,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// true : 「地図を動かして位置を決め、ボタンを押してピン追加」モード
   bool _pinAddMode = false;
 
+  /// 現在地追従モード
+  /// true の間は GPS 更新のたびに地図の中心を現在地に合わせる
+  /// 手動ドラッグで自動的に false になる
+  bool _isFollowingLocation = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,14 +59,44 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     super.dispose();
   }
 
+  /// 追従モードを ON にして現在地へ移動する
+  void _startFollowing(LocationData location) {
+    setState(() => _isFollowingLocation = true);
+    _mapController.move(
+      LatLng(location.latitude, location.longitude),
+      _mapController.camera.zoom,
+    );
+  }
+
+  /// 追従モードを OFF にする（手動ドラッグ時に呼ぶ）
+  void _stopFollowing() {
+    if (_isFollowingLocation) {
+      setState(() => _isFollowingLocation = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mapSourcesAsync = ref.watch(mapUrlSourceProvider);
     final currentUrlMap = ref.watch(mapSelectionProvider);
     final folderAsync = ref.watch(folderProvider);
-    final textScaleType = ref.watch(textScaleProvider);
+    final scale = ref.watch(textScaleProvider).scale;
     final textTheme = Theme.of(context).textTheme;
-    final scale = textScaleType.scale;
+
+    final locationAsync = ref.watch(locationStreamProvider);
+    final currentLocation = locationAsync.valueOrNull;
+
+    // 追従モードが ON かつ現在地が取得できている場合、GPS 更新ごとに地図を移動する
+    // ref.listen は build() 内で使うことで毎フレーム再登録されず安全に動作する
+    ref.listen(locationStreamProvider, (_, next) {
+      if (!_isFollowingLocation) return;
+      final loc = next.valueOrNull;
+      if (loc == null) return;
+      _mapController.move(
+        LatLng(loc.latitude, loc.longitude),
+        _mapController.camera.zoom,
+      );
+    });
 
     return mapSourcesAsync.when(
       loading: () =>
@@ -102,7 +143,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
           body: Stack(
             children: [
-              // ── 地図本体 ───────────────────────────────────────────────
+              // ── 地図本体 ─────────────────────────────────────────────────
               FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
@@ -119,10 +160,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           camera.center.longitude,
                           camera.zoom,
                         );
+                    // 手動ドラッグ（hasGesture = true）で追従モードを OFF にする
+                    if (hasGesture) _stopFollowing();
                   },
                 ),
                 children: [
-                  // URL タイルレイヤー（オンラインキャッシュ付き）
                   TileLayer(
                     urlTemplate: currentUrlMap.urlTemplate,
                     userAgentPackageName: 'com.example.map_app',
@@ -142,7 +184,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         ),
                       ],
                     ),
-                  // 縮尺バー
                   Scalebar(
                     alignment: Alignment.topLeft,
                     padding: EdgeInsets.only(
@@ -155,12 +196,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     lineColor: Colors.black,
                     strokeWidth: 2,
                   ),
-                  // ピンマーカーレイヤー（フォルダ選択済みのみ）
+
+                  // 現在地マーカー
+                  if (currentLocation != null)
+                    _CurrentLocationLayer(location: currentLocation),
+
+                  // ピンマーカーレイヤー
                   if (folder != null) const PinMarkerLayer(),
                 ],
               ),
 
-              // ── クロスヘア（常時中央表示）──────────────────────────────
+              // ── クロスヘア ───────────────────────────────────────────────
               Center(
                 child: IgnorePointer(
                   child: CustomPaint(
@@ -186,7 +232,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               ),
 
-              // ── フォルダ未選択バナー ────────────────────────────────────
+              // ── フォルダ未選択バナー ─────────────────────────────────────
               if (folder == null)
                 Positioned(
                   bottom: 120 * scale,
@@ -215,7 +261,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                 ),
 
-              // ── ピン追加モードのガイドバナー ────────────────────────────
+              // ── ピン追加モードのガイドバナー ─────────────────────────────
               if (_pinAddMode)
                 Positioned(
                   top: 12,
@@ -252,7 +298,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                 ),
 
-              // ── FAB群（右下）────────────────────────────────────────────
+              // ── FAB 群（右下）───────────────────────────────────────────
               SafeArea(
                 child: Align(
                   alignment: Alignment.bottomRight,
@@ -263,14 +309,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // ピン追加 FAB（フォルダ選択済みのみ表示）
+                        // ── ピン追加 FAB ──────────────────────────────────
                         if (folder != null) ...[
                           _PinAddFab(
                             scale: scale,
                             isActive: _pinAddMode,
                             onTap: () {
                               if (_pinAddMode) {
-                                // アクティブ状態でタップ → 現在の中央座標でボトムシートを開く
                                 final cam = ref.read(mapCameraProvider);
                                 showModalBottomSheet(
                                   context: context,
@@ -289,14 +334,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                                   }
                                 });
                               } else {
-                                // 非アクティブ → モード ON
                                 setState(() => _pinAddMode = true);
                               }
                             },
                           ),
                           SizedBox(height: 10 * scale),
                         ],
-                        // ズームイン・アウトボタン
+
+                        // ── 現在地追従 FAB ───────────────────────────────
+                        // 現在地が取得できている場合のみ表示
+                        if (currentLocation != null) ...[
+                          _FollowLocationFab(
+                            scale: scale,
+                            isFollowing: _isFollowingLocation,
+                            onTap: () {
+                              if (_isFollowingLocation) {
+                                // 追従中 → OFF にするだけ
+                                setState(() => _isFollowingLocation = false);
+                              } else {
+                                // 追従開始 → 現在地に移動してモード ON
+                                _startFollowing(currentLocation);
+                              }
+                            },
+                          ),
+                          SizedBox(height: 10 * scale),
+                        ],
+
+                        // ── ズームボタン ──────────────────────────────────
                         MapFabButtons(mapController: _mapController),
                       ],
                     ),
@@ -311,7 +375,96 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 }
 
-// ── ピン追加 FAB ──────────────────────────────────────────────────────────
+// ── 現在地追従 FAB ─────────────────────────────────────────────────────────
+
+/// 現在地への追従ON/OFFを切り替えるボタン
+/// 追従ON: 青い「my_location」アイコン（塗りつぶし）
+/// 追従OFF: グレーの「my_location」アイコン（アウトライン）
+class _FollowLocationFab extends StatelessWidget {
+  final double scale;
+  final bool isFollowing;
+  final VoidCallback onTap;
+
+  const _FollowLocationFab({
+    required this.scale,
+    required this.isFollowing,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48 * scale,
+      height: 48 * scale,
+      child: FloatingActionButton.small(
+        heroTag: 'followLocation',
+        onPressed: onTap,
+        backgroundColor: isFollowing ? Colors.blue : Colors.white,
+        tooltip: isFollowing ? '追従を解除' : '現在地に追従',
+        elevation: 3,
+        child: Icon(
+          isFollowing ? Icons.my_location : Icons.location_searching,
+          color: isFollowing ? Colors.white : Colors.grey[600],
+          size: 22 * scale,
+        ),
+      ),
+    );
+  }
+}
+
+// ── 現在地マーカーレイヤー ─────────────────────────────────────────────────
+
+class _CurrentLocationLayer extends StatelessWidget {
+  final LocationData location;
+  const _CurrentLocationLayer({required this.location});
+
+  @override
+  Widget build(BuildContext context) {
+    final point = LatLng(location.latitude, location.longitude);
+
+    return Stack(
+      children: [
+        CircleLayer(
+          circles: [
+            CircleMarker(
+              point: point,
+              radius: location.accuracy,
+              useRadiusInMeter: true,
+              color: Colors.blue.withValues(alpha: 0.15),
+              borderColor: Colors.blue.withValues(alpha: 0.4),
+              borderStrokeWidth: 1,
+            ),
+          ],
+        ),
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: point,
+              width: 20,
+              height: 20,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withValues(alpha: 0.4),
+                      blurRadius: 6,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── ピン追加 FAB ────────────────────────────────────────────────────────────
 
 class _PinAddFab extends StatelessWidget {
   final double scale;

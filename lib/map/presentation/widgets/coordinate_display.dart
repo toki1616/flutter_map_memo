@@ -1,68 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../location/presentation/providers/location_provider.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
 import '../providers/map_camera_provider.dart';
 
-// マップの中央座標（Center）と端末の現在地（My Location）の緯度経度を画面上にオーバーレイ表示するUIウィジェットファイル
-// textScaleProviderから現在の文字サイズタイプ（TextScaleType）を監視し、全体の拡大倍率に連動して枠サイズや余白、文字が破綻なくスケールする設計
+/// マップ中央座標（Center）と端末の現在地（My Location）を
+/// 画面右上にオーバーレイ表示するウィジェット
+///
+/// - Center      : mapCameraProvider から取得（地図操作でリアルタイム更新）
+/// - My Location : locationStreamProvider から取得（GPS でリアルタイム更新）
 class CoordinateDisplay extends ConsumerWidget {
   const CoordinateDisplay({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mapCamera = ref.watch(mapCameraProvider);
+    final locationAsync = ref.watch(locationStreamProvider);
 
-    // TODO: スマホの現在地
-    // final currentLocation = ref.watch(locationStreamProvider).valueOrNull;
-    const currentLocation = null; // 現在は仮として null を置いています
-
-    // textScaleProvider から列挙型（TextScaleType）を取得し、拡大倍率（scale）を取り出す
-    final textScaleType = ref.watch(textScaleProvider);
-    final scale = textScaleType.scale;
-
-    // 現在のテーマに設定されているテキストスタイルを取得（フォントサイズはTheme側で自動スケールされます）
+    final scale = ref.watch(textScaleProvider).scale;
     final textTheme = Theme.of(context).textTheme;
-    // 黒背景の上に白文字で綺麗に表示するため、ベーススタイルを調整
-    final baseStyle = textTheme.bodyMedium?.copyWith(color: Colors.white);
+    final baseStyle = textTheme.bodyMedium?.copyWith(
+      color: Colors.white,
+      height: 1.5,
+    );
+    final labelStyle = baseStyle?.copyWith(
+      fontWeight: FontWeight.w600,
+      fontSize: (textTheme.bodyMedium?.fontSize ?? 14) * scale * 0.85,
+      color: Colors.white70,
+    );
 
     return Container(
-      // padding もスケールさせることで、文字が大きくなっても余白を維持
       padding: EdgeInsets.all(8 * scale),
-      constraints: BoxConstraints(
-        // maxWidth を広げないと、文字が大きくなった時に不自然に改行されるのを防止
-        maxWidth: 220 * scale,
-      ),
+      constraints: BoxConstraints(maxWidth: 220 * scale),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
+        color: Colors.black.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(6 * scale),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+
+          // ── マップ中央座標 ──────────────────────────────────────────────
+          Text('Center', style: labelStyle),
           Text(
-            "Center\n"
-                "Lat: ${mapCamera.latitude.toStringAsFixed(6)}\n"
-                "Lng: ${mapCamera.longitude.toStringAsFixed(6)}\n"
-                "Zoom: ${mapCamera.zoom.toStringAsFixed(1)}",
+            'Lat: ${mapCamera.latitude.toStringAsFixed(6)}\n'
+            'Lng: ${mapCamera.longitude.toStringAsFixed(6)}\n'
+            'Zoom: ${mapCamera.zoom.toStringAsFixed(1)}',
             style: baseStyle,
           ),
 
-          // 行間も倍率に合わせて動的に拡張
-          SizedBox(height: 10 * scale),
+          SizedBox(height: 8 * scale),
+          Divider(color: Colors.white24, height: 1, thickness: 1),
+          SizedBox(height: 8 * scale),
 
-          if (currentLocation != null)
-            Text(
-              "My Location\n"
-                  "Lat: \${currentLocation.latitude.toStringAsFixed(6)}\n"
-                  "Lng: \${currentLocation.longitude.toStringAsFixed(6)}",
-              style: baseStyle,
-            )
-          else
-            Text(
-              "My Location\n取得中...",
-              style: baseStyle,
+          // ── 現在地 ─────────────────────────────────────────────────────
+          Text('My Location', style: labelStyle),
+          locationAsync.when(
+            loading: () => Text('取得中...', style: baseStyle),
+            error: (_, __) => Text(
+              '取得エラー',
+              style: baseStyle?.copyWith(color: Colors.redAccent),
             ),
+            data: (location) => location == null
+                ? Text(
+                    '権限なし / 無効',
+                    style: baseStyle?.copyWith(color: Colors.orange),
+                  )
+                : Text(
+                    'Lat: ${location.latitude.toStringAsFixed(6)}\n'
+                    'Lng: ${location.longitude.toStringAsFixed(6)}\n'
+                    '精度: ±${location.accuracy.toStringAsFixed(0)}m',
+                    style: baseStyle,
+                  ),
+          ),
         ],
       ),
     );

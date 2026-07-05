@@ -56,6 +56,9 @@ dependencies:
   # Map Cache
   flutter_map_tile_caching: ^10.0.0
 
+  # location
+  geolocator: ^13.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
