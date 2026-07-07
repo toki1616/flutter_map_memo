@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/datasources/setting_storage_datasource.dart';
 import '../../data/repositories/setting_storage_repository_impl.dart';
+import '../../domain/entities/orientation_config.dart';
 import '../../domain/entities/setting_storage_data.dart';
 import '../../domain/entities/text_scale_config.dart';
 import '../../domain/repositories/setting_storage_repository.dart';
@@ -24,12 +26,14 @@ final settingStorageRepositoryProvider = Provider<SettingStorageRepository>(
 class SettingStorageNotifier extends AsyncNotifier<SettingStorageData> {
   @override
   Future<SettingStorageData> build() async {
-    // アプリ起動時に settings.json を読み込む
-    return ref.read(settingStorageRepositoryProvider).getSettingData();
+    final data =
+        await ref.read(settingStorageRepositoryProvider).getSettingData();
+    // 起動時に保存済みの画面向き設定を即時適用する
+    _applyOrientation(data.orientationType);
+    return data;
   }
 
   /// 設定データをファイルへ書き込み、状態を更新する内部メソッド
-  /// AsyncLoading を挟まないことで textScaleProvider 等の不要な再生成を防ぐ
   Future<void> _save(SettingStorageData data) async {
     try {
       await ref.read(settingStorageRepositoryProvider).saveSettingData(data);
@@ -41,37 +45,34 @@ class SettingStorageNotifier extends AsyncNotifier<SettingStorageData> {
 
   // ── 公開メソッド ────────────────────────────────────────────────────────
 
-  /// 文字サイズ設定を settings.json に保存する
+  /// 文字サイズ設定を保存する
   Future<void> saveTextScale(TextScaleType newScaleType) async {
     final current = state.valueOrNull ?? const SettingStorageData();
     await _save(current.copyWith(textScaleType: newScaleType));
   }
 
-  /// フォルダパスを settings.json に保存する
-  ///
-  /// 呼び出し元:
-  ///   - IosFolderLocalDataSource.onPathResolved   （iOS: フォルダ選択後 / 起動時復元後）
-  ///   - AndroidFolderLocalDataSource.onPathSaved  （Android: フォルダ選択後）
-  ///
-  /// 保存後の settings.json イメージ:
-  ///   {
-  ///     "textScaleType": "standard",
-  ///     "folderPath": "/path/to/selected/folder"
-  ///   }
+  /// フォルダパスを保存する
   Future<void> saveFolderPath(String path) async {
     final current = state.valueOrNull ?? const SettingStorageData();
     await _save(current.copyWith(folderPath: path));
   }
 
-  /// フォルダパスを settings.json から削除する
-  ///
-  /// 呼び出し元:
-  ///   - IosFolderLocalDataSource.onPathCleared   （iOS: フォルダリセット時）
-  ///   - AndroidFolderLocalDataSource.onPathCleared（Android: フォルダリセット時）
+  /// フォルダパスを削除する
   Future<void> clearFolderPath() async {
     final current = state.valueOrNull ?? const SettingStorageData();
-    // folderPath に null を渡してクリア（_sentinel 番兵で null と未指定を区別）
     await _save(current.copyWith(folderPath: null));
+  }
+
+  /// 画面向き設定を保存し、即時適用する
+  Future<void> saveOrientation(OrientationType newType) async {
+    final current = state.valueOrNull ?? const SettingStorageData();
+    _applyOrientation(newType);
+    await _save(current.copyWith(orientationType: newType));
+  }
+
+  /// SystemChrome で画面向きを実際に適用する
+  void _applyOrientation(OrientationType type) {
+    SystemChrome.setPreferredOrientations(type.orientations);
   }
 }
 
