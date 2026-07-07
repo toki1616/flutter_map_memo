@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../folder/presentation/providers/folder_provider.dart';
+import '../../domain/entities/orientation_config.dart';
 import '../../domain/entities/text_scale_config.dart';
+import '../providers/setting_storage_provider.dart';
 import '../providers/text_scale_provider.dart';
 
 /// 設定画面
-/// - 表示サイズ変更（ドロップダウン）
+/// - 表示サイズ変更
+/// - 画面の向き設定（縦・横・自動）
 /// - マップフォルダ選択 / 変更 / クリア
 class SettingScreen extends ConsumerWidget {
   const SettingScreen({super.key});
@@ -14,9 +17,14 @@ class SettingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentScaleType = ref.watch(textScaleProvider);
+    final settingAsync = ref.watch(settingStorageProvider);
     final folderAsync = ref.watch(folderProvider);
     final textTheme = Theme.of(context).textTheme;
     final scale = ref.watch(textScaleProvider).scale;
+
+    // 現在の画面向き設定（ロード中はデフォルト値を使う）
+    final currentOrientation =
+        settingAsync.valueOrNull?.orientationType ?? OrientationType.auto;
 
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
@@ -29,7 +37,8 @@ class SettingScreen extends ConsumerWidget {
             child: ListTile(
               title: Text(
                 '表示サイズ',
-                style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: textTheme.bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
                 '文字やボタンの一括拡大倍率',
@@ -62,6 +71,58 @@ class SettingScreen extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
+          // ── 画面の向き ──────────────────────────────────────────────────
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(16 * scale),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '画面の向き',
+                    style: textTheme.bodyLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '縦画面・横画面・自動回転を切り替えます',
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.6)),
+                  ),
+                  const SizedBox(height: 12),
+                  // 3択をセグメント風に表示
+                  Row(
+                    children: OrientationType.values.map((type) {
+                      final isSelected = currentOrientation == type;
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right: type != OrientationType.landscape
+                                ? 6 * scale
+                                : 0,
+                          ),
+                          child: _OrientationButton(
+                            type: type,
+                            isSelected: isSelected,
+                            scale: scale,
+                            onTap: () => ref
+                                .read(settingStorageProvider.notifier)
+                                .saveOrientation(type),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
           // ── マップフォルダ ──────────────────────────────────────────────
           Card(
             child: Padding(
@@ -87,7 +148,7 @@ class SettingScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // ── 現在のフォルダ表示 ──
+                  // 現在のフォルダ表示
                   folderAsync.when(
                     loading: () => const LinearProgressIndicator(),
                     error: (e, _) => Text(
@@ -141,7 +202,7 @@ class SettingScreen extends ConsumerWidget {
 
                   const SizedBox(height: 16),
 
-                  // ── フォルダ選択 / 変更 / クリア ボタン ──
+                  // フォルダ選択 / 変更 / クリア ボタン
                   folderAsync.when(
                     loading: () => const SizedBox.shrink(),
                     error: (_, __) => _PickButton(
@@ -150,13 +211,11 @@ class SettingScreen extends ConsumerWidget {
                           ref.read(folderProvider.notifier).pickFolder(),
                     ),
                     data: (folder) => folder == null
-                        // 未選択 → 選択ボタンのみ
                         ? _PickButton(
                             label: 'フォルダを選択',
                             onTap: () =>
                                 ref.read(folderProvider.notifier).pickFolder(),
                           )
-                        // 選択済み → 変更 + クリア
                         : Row(
                             children: [
                               Expanded(
@@ -229,7 +288,7 @@ class SettingScreen extends ConsumerWidget {
                     'Documents/\n'
                     '  save_data/\n'
                     '    setting/\n'
-                    '      settings.json  ← フォルダパスと設定を保存',
+                    '      settings.json',
                     style: TextStyle(
                       fontSize: 11 * scale,
                       fontFamily: 'monospace',
@@ -272,6 +331,78 @@ class SettingScreen extends ConsumerWidget {
     }
   }
 }
+
+// ── 画面向き選択ボタン ──────────────────────────────────────────────────────
+
+class _OrientationButton extends StatelessWidget {
+  final OrientationType type;
+  final bool isSelected;
+  final double scale;
+  final VoidCallback onTap;
+
+  const _OrientationButton({
+    required this.type,
+    required this.isSelected,
+    required this.scale,
+    required this.onTap,
+  });
+
+  IconData get _icon {
+    switch (type) {
+      case OrientationType.auto:
+        return Icons.screen_rotation_outlined;
+      case OrientationType.portrait:
+        return Icons.stay_current_portrait_outlined;
+      case OrientationType.landscape:
+        return Icons.stay_current_landscape_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(
+            vertical: 10 * scale, horizontal: 4 * scale),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary : Colors.white,
+          border: Border.all(
+            color: isSelected ? AppTheme.primary : Colors.grey.shade300,
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _icon,
+              size: 22 * scale,
+              color: isSelected ? Colors.white : AppTheme.muted,
+            ),
+            SizedBox(height: 4 * scale),
+            Text(
+              type.label,
+              style: textTheme.bodyMedium?.copyWith(
+                fontSize: 12 * scale,
+                color: isSelected ? Colors.white : AppTheme.onSurface,
+                fontWeight:
+                    isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── フォルダ選択ボタン ──────────────────────────────────────────────────────
 
 class _PickButton extends StatelessWidget {
   final String label;
