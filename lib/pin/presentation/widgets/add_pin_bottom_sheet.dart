@@ -8,9 +8,26 @@ import '../providers/pin_provider.dart';
 
 /// ピン追加時に画面下部から表示されるボトムシート
 /// タイトル（必須）・メモ（任意）・カラー選択を入力してピンを作成する
+///
+/// [onSave] が指定された場合はそちらを呼ぶ（Clean Architecture 対応）
+/// 未指定の場合は従来通り pinProvider を直接呼ぶ（後方互換）
 class AddPinBottomSheet extends ConsumerStatefulWidget {
   final LatLng position;
-  const AddPinBottomSheet({super.key, required this.position});
+
+  /// Clean Architecture 対応: 保存処理を外部から注入するコールバック
+  /// mapFabProvider 経由でピンを追加する場合に使用する
+  /// null の場合は pinProvider を直接呼ぶ従来の動作になる
+  final Future<void> Function({
+    required String title,
+    required String memo,
+    required String colorHex,
+  })? onSave;
+
+  const AddPinBottomSheet({
+    super.key,
+    required this.position,
+    this.onSave,
+  });
 
   @override
   ConsumerState<AddPinBottomSheet> createState() => _AddPinBottomSheetState();
@@ -34,22 +51,27 @@ class _AddPinBottomSheetState extends ConsumerState<AddPinBottomSheet> {
     setState(() => _isSaving = true);
 
     try {
-      // ピン追加非同期処理の実行
-      await ref.read(pinProvider.notifier).addPin(
-        position: widget.position,
-        title: _titleCtrl.text.trim(),
-        memo: _memoCtrl.text.trim(),
-        colorHex: _selectedColor,
-      );
-
-      // 💡【追加】保存が正常終了したらコンテキストの有効性を確認して画面を閉じる
-      if (context.mounted) {
-        Navigator.pop(context);
+      if (widget.onSave != null) {
+        // Clean Architecture 対応: 外部コールバックで保存
+        await widget.onSave!(
+          title: _titleCtrl.text.trim(),
+          memo: _memoCtrl.text.trim(),
+          colorHex: _selectedColor,
+        );
+      } else {
+        // 後方互換: pinProvider を直接呼ぶ従来の動作
+        await ref.read(pinProvider.notifier).addPin(
+              position: widget.position,
+              title: _titleCtrl.text.trim(),
+              memo: _memoCtrl.text.trim(),
+              colorHex: _selectedColor,
+            );
       }
+
+      if (context.mounted) Navigator.pop(context);
     } catch (e) {
-      // 💡【追加】エラーが発生した場合はここでぐるぐるを解除し、メッセージを出す
       if (context.mounted) {
-        setState(() => _isSaving = false); // ボタンを有効化し、ぐるぐるを止める
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('ピンの保存に失敗しました。詳細: $e'),
@@ -121,8 +143,8 @@ class _AddPinBottomSheetState extends ConsumerState<AddPinBottomSheet> {
             spacing: 10,
             runSpacing: 10,
             children: AppConstants.pinColors.map((String colorHex) {
-              // `?.` を削除して `.` に修正（String? から String へ適合）
-              final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+              final color =
+                  Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
               final selected = _selectedColor == colorHex;
               return GestureDetector(
                 onTap: () => setState(() => _selectedColor = colorHex),
@@ -149,7 +171,7 @@ class _AddPinBottomSheetState extends ConsumerState<AddPinBottomSheet> {
           // 座標表示
           Text(
             '${widget.position.latitude.toStringAsFixed(6)}, '
-                '${widget.position.longitude.toStringAsFixed(6)}',
+            '${widget.position.longitude.toStringAsFixed(6)}',
             style: textTheme.bodyMedium
                 ?.copyWith(color: AppTheme.muted, fontSize: 11 * scale),
           ),
@@ -168,14 +190,14 @@ class _AddPinBottomSheetState extends ConsumerState<AddPinBottomSheet> {
                 onPressed: _isSaving ? null : _save,
                 child: _isSaving
                     ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white),
-                )
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
                     : Text('追加',
-                    style: textTheme.labelLarge
-                        ?.copyWith(color: Colors.white)),
+                        style: textTheme.labelLarge
+                            ?.copyWith(color: Colors.white)),
               ),
             ],
           ),
