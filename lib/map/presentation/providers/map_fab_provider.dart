@@ -2,69 +2,65 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../folder/presentation/providers/folder_provider.dart';
+import '../../../location/domain/entities/location_data.dart';
 import '../../../location/presentation/providers/location_provider.dart';
 import '../../../pin/presentation/providers/pin_provider.dart';
+import '../../../setting/presentation/providers/setting_storage_provider.dart';
+import '../../../track/domain/entities/track_log.dart';
+import '../../../track/domain/usecases/track_usecases.dart';
+import '../../../track/presentation/providers/track_provider.dart';
 import '../../domain/entities/map_fab_state.dart';
 import '../../domain/usecases/add_pin_from_center_usecase.dart';
 
 // ── DI ───────────────────────────────────────────────────────────────────
 
-/// AddPinFromCenterUseCase の DI
-/// pinRepositoryProvider は pin_provider.dart で定義済み
-/// folderRepositoryProvider は folder_provider.dart で定義済み
-final addPinFromCenterUseCaseProvider =
-    Provider<AddPinFromCenterUseCase>((ref) {
-  return AddPinFromCenterUseCase(
+final addPinFromCenterUseCaseProvider = Provider<AddPinFromCenterUseCase>(
+  (ref) => AddPinFromCenterUseCase(
     pinRepository: ref.watch(pinRepositoryProvider),
     folderRepository: ref.watch(folderRepositoryProvider),
-  );
-});
+  ),
+);
 
 // ── Notifier ──────────────────────────────────────────────────────────────
 
 /// マップ画面のFABボタン群の状態を一元管理する Notifier
 ///
-/// 他 feature（folder / location / pin）への依存をここに集約することで、
-/// UI 層（MapFabButtons）は mapFabProvider だけを watch すればよい設計にする。
-///
-/// 責務:
-///   - folderProvider を監視してフォルダ選択状態を同期する
-///   - locationStreamProvider を監視して現在地を同期する
-///   - ピン追加モード / 追従モードの ON/OFF を管理する
-///   - ピン追加の実行（AddPinFromCenterUseCase を呼ぶ）
-///
-/// 【重要】build() 内では state を参照しない
-///   Notifier.build() の初回実行時は state が未初期化のため
-///   state を参照すると LateInitializationError になる。
-///   isPinAddMode / isFollowingLocation は内部変数で管理し、
-///   build() は外部 Provider の値のみで状態を組み立てる。
+/// トラック記録の責務:
+///   - 記録開始: _currentTrackLog を生成してファイルに初回保存
+///   - ポイント追加: GPS 更新のたびに _currentTrackLog を更新してファイルに即時保存
+///     （タスクキル対策: 毎回ファイルに書き込む）
+///   - 記録停止: endedAt をセットして最終保存し _currentTrackLog をクリア
 class MapFabNotifier extends Notifier<MapFabState> {
-  // build() の再実行をまたいでモードを保持する内部変数
   bool _isPinAddMode = false;
   bool _isFollowingLocation = false;
+  bool _isTracking = false;
+
+  /// 現在記録中のトラックログ（記録中のみ非 null）
+  TrackLog? _currentTrackLog;
 
   @override
   MapFabState build() {
-    // folderProvider を監視してフォルダ選択状態を同期
     final folder = ref.watch(folderProvider).valueOrNull;
-
-    // locationStreamProvider を監視して現在地を同期
     final locationAsync = ref.watch(locationStreamProvider);
     final loc = locationAsync.valueOrNull;
     final currentLatLng =
         loc != null ? LatLng(loc.latitude, loc.longitude) : null;
 
-    // 現在地が取得できなくなった場合は追従モードを自動 OFF
     if (currentLatLng == null) {
       _isFollowingLocation = false;
     }
 
-    // state を参照せず内部変数から状態を組み立てる
+    // GPS 更新時にトラックポイントを追加して即時保存
+    if (_isTracking && loc != null && folder != null) {
+      _appendTrackPoint(loc, folder.path);
+    }
+
     return MapFabState(
       isFolderSelected: folder != null,
       currentLocation: currentLatLng,
       isPinAddMode: _isPinAddMode,
       isFollowingLocation: _isFollowingLocation,
+      isTracking: _isTracking,
     );
   }
 
@@ -80,8 +76,6 @@ class MapFabNotifier extends Notifier<MapFabState> {
     state = state.copyWith(isPinAddMode: false);
   }
 
-  /// マップ中央座標にピンを追加する
-  /// 追加後は pinProvider を invalidate して一覧を最新化する
   Future<void> addPinAtCenter({
     required LatLng position,
     required String title,
@@ -112,22 +106,99 @@ class MapFabNotifier extends Notifier<MapFabState> {
     state = state.copyWith(isFollowingLocation: false);
   }
 
-  /// 手動ドラッグを検知した時に呼ぶ（map_screen.dart の onPositionChanged から）
   void stopFollowingIfNeeded(bool hasGesture) {
-    if (hasGesture && state.isFollowingLocation) {
-      disableFollowing();
-    }
+    if (hasGesture && state.isFollowingLocation) disableFollowing();
   }
+
+  // ── トラック記録 ───────────────────────────────────────────────────────
+
+  /// 記録を開始する
+  /// セッション開始時刻から id を生成してファイルに初回保存する
+  Future<void> startTracking() async {
+    final folder = ref.read(folderProvider).valueOrNull;
+    if (folder == null) return;
+
+    final now = DateTime.now();
+    final id = generateTrackId(now);
+    _currentTrackLog = TrackLog(
+      id: id,
+      startedAt: now,
+      points: const [],
+    );
+
+    // 初回保存（空ポイントでもファイルを作る）
+    await ref.read(saveTrackUseCaseProvider).call(
+          SaveTrackParams(rootPath: folder.path, log: _currentTrackLog!),
+        );
+
+    _isTracking = true;
+    state = state.copyWith(isTracking: true);
+
+    // 一覧を再読み込み
+    ref.read(trackListProvider.notifier).reload();
+  }
+
+  /// 記録を停止する
+  Future<void> stopTracking() async {
+    if (_currentTrackLog == null) return;
+    final folder = ref.read(folderProvider).valueOrNull;
+    if (folder == null) return;
+
+    final finished = _currentTrackLog!.copyWith(endedAt: DateTime.now());
+    await ref.read(saveTrackUseCaseProvider).call(
+          SaveTrackParams(rootPath: folder.path, log: finished),
+        );
+
+    _currentTrackLog = null;
+    _isTracking = false;
+    state = state.copyWith(isTracking: false);
+
+    ref.read(trackListProvider.notifier).reload();
+  }
+
+  /// GPS 更新のたびにポイントを追記してファイルに即時保存する
+  /// build() から呼ばれる（GPS 更新ごとに build が再実行される）
+  void _appendTrackPoint(LocationData loc, String rootPath) async {
+    if (_currentTrackLog == null) return;
+
+    // 設定の記録間隔を確認
+    final settings = ref.read(settingStorageProvider).valueOrNull;
+    final intervalSec = settings?.trackIntervalSeconds ?? 10;
+
+    final points = _currentTrackLog!.points;
+    if (points.isNotEmpty) {
+      final lastTime = points.last.timestamp;
+      final elapsed = DateTime.now().difference(lastTime).inSeconds;
+      if (elapsed < intervalSec) return; // 間隔未満なら追加しない
+    }
+
+    final newPoint = TrackPoint(
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      accuracy: loc.accuracy,
+      timestamp: DateTime.now(),
+    );
+
+    _currentTrackLog = _currentTrackLog!.copyWith(
+      points: [..._currentTrackLog!.points, newPoint],
+    );
+
+    // タスクキル対策: ポイント追加のたびにファイルへ即時書き込み
+    await ref.read(saveTrackUseCaseProvider).call(
+          SaveTrackParams(rootPath: rootPath, log: _currentTrackLog!),
+        );
+  }
+
+  /// 現在記録中のトラックログを返す（map_screen でのリアルタイム表示用）
+  TrackLog? get currentTrackLog => _currentTrackLog;
 }
 
 final mapFabProvider = NotifierProvider<MapFabNotifier, MapFabState>(() {
   return MapFabNotifier();
 });
 
-// ── 追従時の移動先座標を map_screen.dart へ伝える Provider ────────────────
+// ── 追従時の移動先 Provider ───────────────────────────────────────────────
 
-/// 追従モードが ON かつ現在地がある場合に LatLng を emit する
-/// map_screen.dart がこれを listen して mapController.move() を呼ぶ
 final followLocationTargetProvider = Provider<LatLng?>((ref) {
   final fabState = ref.watch(mapFabProvider);
   if (!fabState.isFollowingLocation) return null;

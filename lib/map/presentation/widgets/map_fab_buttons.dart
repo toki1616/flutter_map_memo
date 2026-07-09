@@ -11,16 +11,12 @@ import '../providers/map_fab_provider.dart';
 
 /// 地図画面の右下にフローティング表示するボタン群
 ///
-/// 【Clean Architecture における役割】
-/// UI 層として mapFabProvider と mapCameraProvider のみを参照する。
-/// folder / location / pin の各 feature への直接依存はゼロ。
-/// ビジネスロジック（ピン追加・追従制御）は mapFabProvider に委譲する。
-///
 /// 上から順に:
 ///   1. ピン追加ボタン   （isFolderSelected = true のみ表示）
-///   2. 現在地追従ボタン （currentLocation != null のみ表示）
-///   3. ズームイン
-///   4. ズームアウト
+///   2. トラック記録ボタン（isFolderSelected = true のみ表示）
+///   3. 現在地追従ボタン （currentLocation != null のみ表示）
+///   4. ズームイン
+///   5. ズームアウト
 class MapFabButtons extends ConsumerWidget {
   final MapController mapController;
 
@@ -31,11 +27,13 @@ class MapFabButtons extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 参照するのは map feature 内の Provider のみ
     final fabState = ref.watch(mapFabProvider);
     final mapCamera = ref.watch(mapCameraProvider);
     final currentCenter = LatLng(mapCamera.latitude, mapCamera.longitude);
     final currentZoom = mapCamera.zoom;
+
+    // 全てのボタンで共通して使用するサイズ変数
+    const double buttonSize = 56.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -53,12 +51,12 @@ class MapFabButtons extends ConsumerWidget {
               color: Colors.white,
             ),
             backgroundColor: fabState.isPinAddMode
-                ? const Color(0xFFD4A017)  // accent
-                : const Color(0xFF2D6A4F), // primary
+                ? const Color(0xFFD4A017)
+                : const Color(0xFF2D6A4F),
             tooltip: fabState.isPinAddMode ? '中央の位置にピンを追加' : 'ピン追加モード',
+            baseHeight: buttonSize,
             onPressed: () {
               if (fabState.isPinAddMode) {
-                // モード ON → ボトムシートを開いてピン追加
                 showModalBottomSheet(
                   context: context,
                   isScrollControlled: true,
@@ -74,11 +72,11 @@ class MapFabButtons extends ConsumerWidget {
                         await ref
                             .read(mapFabProvider.notifier)
                             .addPinAtCenter(
-                              position: currentCenter,
-                              title: title,
-                              memo: memo,
-                              colorHex: colorHex,
-                            );
+                          position: currentCenter,
+                          title: title,
+                          memo: memo,
+                          colorHex: colorHex,
+                        );
                       },
                     ),
                   ),
@@ -86,7 +84,6 @@ class MapFabButtons extends ConsumerWidget {
                   ref.read(mapFabProvider.notifier).disablePinAddMode();
                 });
               } else {
-                // モード OFF → ON にする
                 ref.read(mapFabProvider.notifier).enablePinAddMode();
               }
             },
@@ -94,7 +91,32 @@ class MapFabButtons extends ConsumerWidget {
           const SizedBox(height: 10),
         ],
 
-        // ── 2. 現在地追従ボタン ───────────────────────────────────────────
+        // ── 2. トラック記録ボタン ─────────────────────────────────────────
+        if (fabState.isFolderSelected) ...[
+          AppFloatingButton(
+            heroTag: 'trackRecord',
+            icon: Icon(
+              fabState.isTracking
+                  ? Icons.stop_circle_outlined
+                  : Icons.fiber_manual_record,
+              color: Colors.white,
+            ),
+            backgroundColor:
+            fabState.isTracking ? Colors.red[700] : Colors.red,
+            tooltip: fabState.isTracking ? '記録を停止' : '移動記録を開始',
+            baseHeight: buttonSize,
+            onPressed: () async {
+              if (fabState.isTracking) {
+                await ref.read(mapFabProvider.notifier).stopTracking();
+              } else {
+                await ref.read(mapFabProvider.notifier).startTracking();
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── 3. 現在地追従ボタン ───────────────────────────────────────────
         if (fabState.currentLocation != null) ...[
           AppFloatingButton(
             heroTag: 'followLocation',
@@ -107,14 +129,13 @@ class MapFabButtons extends ConsumerWidget {
                   : Colors.grey[600],
             ),
             backgroundColor:
-                fabState.isFollowingLocation ? Colors.blue : Colors.white,
+            fabState.isFollowingLocation ? Colors.blue : Colors.white,
             tooltip: fabState.isFollowingLocation ? '追従を解除' : '現在地に追従',
-            baseHeight: 48.0,
+            baseHeight: buttonSize,
             onPressed: () {
               if (fabState.isFollowingLocation) {
                 ref.read(mapFabProvider.notifier).disableFollowing();
               } else {
-                // 追従 ON + 現在地へ即時移動
                 ref.read(mapFabProvider.notifier).enableFollowing();
                 final loc = fabState.currentLocation!;
                 mapController.move(loc, mapController.camera.zoom);
@@ -124,11 +145,12 @@ class MapFabButtons extends ConsumerWidget {
           const SizedBox(height: 10),
         ],
 
-        // ── 3. ズームイン ────────────────────────────────────────────────
+        // ── 4. ズームイン ────────────────────────────────────────────────
         AppFloatingButton(
           heroTag: 'zoomIn',
           icon: const Icon(Icons.add, color: Colors.black),
           backgroundColor: Colors.white,
+          baseHeight: buttonSize,
           onPressed: () {
             try {
               if (currentZoom < AppConstants.maxZoom) {
@@ -139,11 +161,12 @@ class MapFabButtons extends ConsumerWidget {
         ),
         const SizedBox(height: 10),
 
-        // ── 4. ズームアウト ──────────────────────────────────────────────
+        // ── 5. ズームアウト ──────────────────────────────────────────────
         AppFloatingButton(
           heroTag: 'zoomOut',
           icon: const Icon(Icons.remove, color: Colors.black),
           backgroundColor: Colors.white,
+          baseHeight: buttonSize,
           onPressed: () {
             try {
               if (currentZoom > AppConstants.minZoom) {

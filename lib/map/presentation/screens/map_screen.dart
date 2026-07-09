@@ -11,6 +11,8 @@ import '../../../location/domain/entities/location_data.dart';
 import '../../../location/presentation/providers/location_provider.dart';
 import '../../../pin/presentation/widgets/pin_marker_layer.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
+import '../../../track/domain/entities/track_log.dart';
+import '../../../track/presentation/providers/track_provider.dart';
 import '../providers/map_camera_provider.dart';
 import '../providers/map_fab_provider.dart';
 import '../providers/map_selection_provider.dart';
@@ -19,8 +21,6 @@ import '../widgets/coordinate_display.dart';
 import '../widgets/crosshair_painter.dart';
 import '../widgets/map_fab_buttons.dart';
 
-/// マップ画面
-/// ボタン群（ピン追加・現在地追従・ズーム）は MapFabButtons に一元管理
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
 
@@ -54,7 +54,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final locationAsync = ref.watch(locationStreamProvider);
     final currentLocation = locationAsync.valueOrNull;
 
-    // 追従モードが ON の場合、GPS 更新のたびに mapController を動かす
+    // 保存済みトラックログ一覧
+    final trackLogsAsync = ref.watch(trackListProvider);
+    final trackLogs = trackLogsAsync.valueOrNull ?? [];
+
+    // 現在記録中のトラックログ（リアルタイム表示用）
+    final currentTrackLog = ref.watch(mapFabProvider.notifier).currentTrackLog;
+
+    // 追従モード: GPS 更新のたびに地図を移動
     ref.listen(followLocationTargetProvider, (_, latLng) {
       if (latLng == null) return;
       _mapController.move(latLng, _mapController.camera.zoom);
@@ -77,7 +84,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           appBar: AppBar(
             title: const Text('フィールドマップ'),
             actions: [
-              // マップソース切替ドロップダウン
               DropdownButton<String>(
                 value: currentUrlMap.id,
                 dropdownColor: Theme.of(context).colorScheme.surface,
@@ -120,7 +126,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           camera.center.longitude,
                           camera.zoom,
                         );
-                    // mapFabProvider 経由で追従を解除
                     if (hasGesture) {
                       ref
                           .read(mapFabProvider.notifier)
@@ -161,6 +166,37 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     strokeWidth: 2,
                   ),
 
+                  // ── 保存済みトラックログの表示 ──────────────────────────
+                  if (trackLogs.isNotEmpty)
+                    PolylineLayer(
+                      polylines: trackLogs
+                          .where((log) => log.points.length >= 2)
+                          .map((log) => Polyline(
+                                points: log.points
+                                    .map((p) =>
+                                        LatLng(p.latitude, p.longitude))
+                                    .toList(),
+                                color: Colors.blue.withValues(alpha: 0.6),
+                                strokeWidth: 3,
+                              ))
+                          .toList(),
+                    ),
+
+                  // ── 現在記録中のトラック（リアルタイム表示）──────────────
+                  if (currentTrackLog != null &&
+                      currentTrackLog.points.length >= 2)
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: currentTrackLog.points
+                              .map((p) => LatLng(p.latitude, p.longitude))
+                              .toList(),
+                          color: Colors.red,
+                          strokeWidth: 4,
+                        ),
+                      ],
+                    ),
+
                   // 現在地マーカー
                   if (currentLocation != null)
                     _CurrentLocationLayer(location: currentLocation),
@@ -195,6 +231,36 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                 ),
               ),
+
+              // ── 記録中バナー ─────────────────────────────────────────────
+              if (ref.watch(mapFabProvider).isTracking)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Container(
+                      color: Colors.red.withValues(alpha: 0.85),
+                      padding: EdgeInsets.symmetric(
+                          vertical: 4 * scale, horizontal: 12 * scale),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.fiber_manual_record,
+                              color: Colors.white, size: 14 * scale),
+                          SizedBox(width: 6 * scale),
+                          Text(
+                            '記録中'
+                            '${currentTrackLog != null ? '  ${currentTrackLog.points.length}pt  '
+                                '${currentTrackLog.totalDistanceKm.toStringAsFixed(2)}km' : ''}',
+                            style: textTheme.bodyMedium
+                                ?.copyWith(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
               // ── フォルダ未選択バナー ─────────────────────────────────────
               if (folder == null)
