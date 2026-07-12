@@ -4,13 +4,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../folder/presentation/providers/folder_provider.dart';
 import '../../domain/entities/orientation_config.dart';
 import '../../domain/entities/text_scale_config.dart';
+import '../../domain/entities/track_setting_config.dart';
 import '../providers/setting_storage_provider.dart';
 import '../providers/text_scale_provider.dart';
 
-/// 設定画面
-/// - 表示サイズ変更
-/// - 画面の向き設定（縦・横・自動）
-/// - マップフォルダ選択 / 変更 / クリア
 class SettingScreen extends ConsumerWidget {
   const SettingScreen({super.key});
 
@@ -21,10 +18,7 @@ class SettingScreen extends ConsumerWidget {
     final folderAsync = ref.watch(folderProvider);
     final textTheme = Theme.of(context).textTheme;
     final scale = ref.watch(textScaleProvider).scale;
-
-    // 現在の画面向き設定（ロード中はデフォルト値を使う）
-    final currentOrientation =
-        settingAsync.valueOrNull?.orientationType ?? OrientationType.auto;
+    final settings = settingAsync.valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
@@ -35,35 +29,29 @@ class SettingScreen extends ConsumerWidget {
           // ── 表示サイズ ──────────────────────────────────────────────────
           Card(
             child: ListTile(
-              title: Text(
-                '表示サイズ',
-                style: textTheme.bodyLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(
-                '文字やボタンの一括拡大倍率',
-                style: textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.6)),
-              ),
+              title: Text('表示サイズ',
+                  style: textTheme.bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              subtitle: Text('文字やボタンの一括拡大倍率',
+                  style: textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6))),
               trailing: DropdownButton<TextScaleType>(
                 value: currentScaleType,
                 dropdownColor: Theme.of(context).colorScheme.surface,
                 style: textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface),
                 underline: const SizedBox(),
-                items: TextScaleType.values.map((type) {
-                  return DropdownMenuItem<TextScaleType>(
-                    value: type,
-                    child: Text(type.label, style: textTheme.bodyMedium),
-                  );
-                }).toList(),
-                onChanged: (TextScaleType? newValue) {
-                  if (newValue != null) {
-                    ref.read(textScaleProvider.notifier).updateScale(newValue);
-                  }
+                items: TextScaleType.values
+                    .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t.label, style: textTheme.bodyMedium)))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null)
+                    ref.read(textScaleProvider.notifier).updateScale(v);
                 },
               ),
             ),
@@ -78,32 +66,27 @@ class SettingScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '画面の向き',
-                    style: textTheme.bodyLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
+                  Text('画面の向き',
+                      style: textTheme.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text(
-                    '縦画面・横画面・自動回転を切り替えます',
-                    style: textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.6)),
-                  ),
+                  Text('縦画面・横画面・自動回転を切り替えます',
+                      style: textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.6))),
                   const SizedBox(height: 12),
-                  // 3択をセグメント風に表示
                   Row(
                     children: OrientationType.values.map((type) {
-                      final isSelected = currentOrientation == type;
+                      final isSelected =
+                          settings?.orientationType == type;
                       return Expanded(
                         child: Padding(
                           padding: EdgeInsets.only(
-                            right: type != OrientationType.landscape
-                                ? 6 * scale
-                                : 0,
-                          ),
+                              right: type != OrientationType.landscape
+                                  ? 6 * scale
+                                  : 0),
                           child: _OrientationButton(
                             type: type,
                             isSelected: isSelected,
@@ -123,125 +106,104 @@ class SettingScreen extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // ── マップフォルダ ──────────────────────────────────────────────
+          // ── トラック記録設定 ────────────────────────────────────────────
           Card(
             child: Padding(
               padding: EdgeInsets.all(16 * scale),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'マップフォルダ',
-                    style: textTheme.bodyLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '選択フォルダ内の map/ からタイルを読み込み、\n'
-                    'save_data/map_data/pin.json にピンを保存します。\n'
-                    '選択したパスは settings.json に自動で保存されます。',
-                    style: textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.6)),
-                  ),
+                  Text('移動記録の設定',
+                      style: textTheme.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
 
-                  // 現在のフォルダ表示
-                  folderAsync.when(
-                    loading: () => const LinearProgressIndicator(),
-                    error: (e, _) => Text(
-                      'エラー: $e',
-                      style: textTheme.bodyMedium
-                          ?.copyWith(color: AppTheme.danger),
+                  // 保存間隔
+                  _SettingRow(
+                    label: '保存間隔',
+                    subtitle: 'GPSポイントを記録する時間の間隔',
+                    child: DropdownButton<TrackIntervalType>(
+                      value: settings?.trackIntervalType ??
+                          TrackIntervalType.sec10,
+                      dropdownColor:
+                          Theme.of(context).colorScheme.surface,
+                      style: textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurface),
+                      underline: const SizedBox(),
+                      items: TrackIntervalType.values
+                          .map((t) => DropdownMenuItem(
+                              value: t,
+                              child: Text(t.label,
+                                  style: textTheme.bodyMedium)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null)
+                          ref
+                              .read(settingStorageProvider.notifier)
+                              .saveTrackInterval(v);
+                      },
                     ),
-                    data: (folder) => folder == null
-                        ? Text(
-                            '未選択',
-                            style: textTheme.bodyMedium
-                                ?.copyWith(color: AppTheme.muted),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.folder,
-                                      color: AppTheme.primary, size: 18),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      folder.name,
-                                      style: textTheme.bodyMedium?.copyWith(
-                                          fontWeight: FontWeight.w600),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                folder.path,
-                                style: textTheme.bodyMedium?.copyWith(
-                                    fontSize: 11 * scale,
-                                    color: AppTheme.muted),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'マップ: ${folder.localMapNames.isEmpty ? "なし" : folder.localMapNames.join(", ")}',
-                                style: textTheme.bodyMedium?.copyWith(
-                                    fontSize: 11 * scale,
-                                    color: AppTheme.muted),
-                              ),
-                            ],
-                          ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const Divider(height: 20),
 
-                  // フォルダ選択 / 変更 / クリア ボタン
-                  folderAsync.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => _PickButton(
-                      label: 'フォルダを再選択',
-                      onTap: () =>
-                          ref.read(folderProvider.notifier).pickFolder(),
+                  // 表示期間
+                  _SettingRow(
+                    label: 'マップ表示期間',
+                    subtitle: 'この期間以内のログをマップに表示する',
+                    child: DropdownButton<TrackDisplayDaysType>(
+                      value: settings?.trackDisplayDaysType ??
+                          TrackDisplayDaysType.week1,
+                      dropdownColor:
+                          Theme.of(context).colorScheme.surface,
+                      style: textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurface),
+                      underline: const SizedBox(),
+                      items: TrackDisplayDaysType.values
+                          .map((t) => DropdownMenuItem(
+                              value: t,
+                              child: Text(t.label,
+                                  style: textTheme.bodyMedium)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null)
+                          ref
+                              .read(settingStorageProvider.notifier)
+                              .saveTrackDisplayDays(v);
+                      },
                     ),
-                    data: (folder) => folder == null
-                        ? _PickButton(
-                            label: 'フォルダを選択',
-                            onTap: () =>
-                                ref.read(folderProvider.notifier).pickFolder(),
-                          )
-                        : Row(
-                            children: [
-                              Expanded(
-                                child: _PickButton(
-                                  label: 'フォルダを変更',
-                                  onTap: () => ref
-                                      .read(folderProvider.notifier)
-                                      .pickFolder(),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              OutlinedButton.icon(
-                                onPressed: () =>
-                                    _confirmClear(context, ref),
-                                icon: const Icon(Icons.delete_outline,
-                                    color: AppTheme.danger, size: 18),
-                                label: const Text('クリア',
-                                    style:
-                                        TextStyle(color: AppTheme.danger)),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(
-                                      color: AppTheme.danger),
-                                ),
-                              ),
-                            ],
-                          ),
+                  ),
+
+                  const Divider(height: 20),
+
+                  // 保存期間
+                  _SettingRow(
+                    label: '保存期間',
+                    subtitle: 'この期間より古いログは自動削除される',
+                    child: DropdownButton<TrackRetentionDaysType>(
+                      value: settings?.trackRetentionDaysType ??
+                          TrackRetentionDaysType.month1,
+                      dropdownColor:
+                          Theme.of(context).colorScheme.surface,
+                      style: textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurface),
+                      underline: const SizedBox(),
+                      items: TrackRetentionDaysType.values
+                          .map((t) => DropdownMenuItem(
+                              value: t,
+                              child: Text(t.label,
+                                  style: textTheme.bodyMedium)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null)
+                          ref
+                              .read(settingStorageProvider.notifier)
+                              .saveTrackRetentionDays(v);
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -250,51 +212,97 @@ class SettingScreen extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // ── フォルダ構造ガイド ───────────────────────────────────────────
+          // ── マップフォルダ ──────────────────────────────────────────────
           Card(
             child: Padding(
-              padding: EdgeInsets.all(14 * scale),
+              padding: EdgeInsets.all(16 * scale),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('マップフォルダ',
+                      style: textTheme.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
                   Text(
-                    'フォルダ構造',
-                    style: textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    '選択フォルダ内の map/ からタイルを読み込み、\n'
+                    'save_data/map_data/pin.json にピンを保存します。\n'
+                    'save_data/map_data/track_log/ に移動記録を保存します。',
+                    style: textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.6)),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'root/\n'
-                    '  map/\n'
-                    '    {マップ名}/{z}/{x}/{y}.png\n'
-                    '  save_data/\n'
-                    '    map_data/\n'
-                    '      pin.json',
-                    style: TextStyle(
-                      fontSize: 11 * scale,
-                      fontFamily: 'monospace',
-                      color: AppTheme.muted,
-                      height: 1.6,
-                    ),
+                  const SizedBox(height: 12),
+                  folderAsync.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (e, _) => Text('エラー: $e',
+                        style: textTheme.bodyMedium
+                            ?.copyWith(color: AppTheme.danger)),
+                    data: (folder) => folder == null
+                        ? Text('未選択',
+                            style: textTheme.bodyMedium
+                                ?.copyWith(color: AppTheme.muted))
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                const Icon(Icons.folder,
+                                    color: AppTheme.primary, size: 18),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                    child: Text(folder.name,
+                                        style: textTheme.bodyMedium
+                                            ?.copyWith(
+                                                fontWeight:
+                                                    FontWeight.w600),
+                                        overflow:
+                                            TextOverflow.ellipsis)),
+                              ]),
+                              const SizedBox(height: 4),
+                              Text(folder.path,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                      fontSize: 11 * scale,
+                                      color: AppTheme.muted),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
                   ),
-                  const Divider(height: 20),
-                  Text(
-                    'アプリ内保存先',
-                    style: textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Documents/\n'
-                    '  save_data/\n'
-                    '    setting/\n'
-                    '      settings.json',
-                    style: TextStyle(
-                      fontSize: 11 * scale,
-                      fontFamily: 'monospace',
-                      color: AppTheme.muted,
-                      height: 1.6,
-                    ),
+                  const SizedBox(height: 16),
+                  folderAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => _PickButton(
+                        label: 'フォルダを再選択',
+                        onTap: () =>
+                            ref.read(folderProvider.notifier).pickFolder()),
+                    data: (folder) => folder == null
+                        ? _PickButton(
+                            label: 'フォルダを選択',
+                            onTap: () => ref
+                                .read(folderProvider.notifier)
+                                .pickFolder())
+                        : Row(children: [
+                            Expanded(
+                                child: _PickButton(
+                                    label: 'フォルダを変更',
+                                    onTap: () => ref
+                                        .read(folderProvider.notifier)
+                                        .pickFolder())),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: () =>
+                                  _confirmClear(context, ref),
+                              icon: const Icon(Icons.delete_outline,
+                                  color: AppTheme.danger, size: 18),
+                              label: const Text('クリア',
+                                  style:
+                                      TextStyle(color: AppTheme.danger)),
+                              style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(
+                                      color: AppTheme.danger)),
+                            ),
+                          ]),
                   ),
                 ],
               ),
@@ -310,42 +318,69 @@ class SettingScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('フォルダ設定をクリア'),
-        content: const Text(
-            '選択したフォルダの設定を削除しますか？\n'
-            'settings.json からパスが削除されます。'),
+        content: const Text('選択したフォルダの設定を削除しますか？'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル')),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('削除',
-                style: TextStyle(color: AppTheme.danger)),
-          ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('削除',
+                  style: TextStyle(color: AppTheme.danger))),
         ],
       ),
     );
-    if (ok == true) {
-      await ref.read(folderProvider.notifier).clear();
-    }
+    if (ok == true) await ref.read(folderProvider.notifier).clear();
   }
 }
 
-// ── 画面向き選択ボタン ──────────────────────────────────────────────────────
+// ── 内部ウィジェット ────────────────────────────────────────────────────────
+
+class _SettingRow extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final Widget child;
+  const _SettingRow(
+      {required this.label, required this.subtitle, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              Text(subtitle,
+                  style: textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                      fontSize: 11)),
+            ],
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
 
 class _OrientationButton extends StatelessWidget {
   final OrientationType type;
   final bool isSelected;
   final double scale;
   final VoidCallback onTap;
-
-  const _OrientationButton({
-    required this.type,
-    required this.isSelected,
-    required this.scale,
-    required this.onTap,
-  });
+  const _OrientationButton(
+      {required this.type,
+      required this.isSelected,
+      required this.scale,
+      required this.onTap});
 
   IconData get _icon {
     switch (type) {
@@ -361,7 +396,6 @@ class _OrientationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -371,38 +405,32 @@ class _OrientationButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? AppTheme.primary : Colors.white,
           border: Border.all(
-            color: isSelected ? AppTheme.primary : Colors.grey.shade300,
-            width: 1.5,
-          ),
+              color: isSelected ? AppTheme.primary : Colors.grey.shade300,
+              width: 1.5),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              _icon,
-              size: 22 * scale,
-              color: isSelected ? Colors.white : AppTheme.muted,
-            ),
+            Icon(_icon,
+                size: 22 * scale,
+                color: isSelected ? Colors.white : AppTheme.muted),
             SizedBox(height: 4 * scale),
-            Text(
-              type.label,
-              style: textTheme.bodyMedium?.copyWith(
-                fontSize: 12 * scale,
-                color: isSelected ? Colors.white : AppTheme.onSurface,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            Text(type.label,
+                style: textTheme.bodyMedium?.copyWith(
+                    fontSize: 12 * scale,
+                    color:
+                        isSelected ? Colors.white : AppTheme.onSurface,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal),
+                textAlign: TextAlign.center),
           ],
         ),
       ),
     );
   }
 }
-
-// ── フォルダ選択ボタン ──────────────────────────────────────────────────────
 
 class _PickButton extends StatelessWidget {
   final String label;
@@ -416,9 +444,7 @@ class _PickButton extends StatelessWidget {
       icon: const Icon(Icons.folder_open_outlined),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: AppTheme.primary,
-        foregroundColor: Colors.white,
-      ),
+          backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
     );
   }
 }
