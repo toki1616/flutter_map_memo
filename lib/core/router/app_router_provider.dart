@@ -1,39 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../folder/presentation/providers/folder_provider.dart';
+import '../../map/presentation/providers/map_camera_provider.dart';
+import '../../map/presentation/providers/map_selection_provider.dart';
+import '../../map/presentation/providers/map_url_source_provider.dart';
 import '../../map/presentation/screens/map_screen.dart';
 import '../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../setting/presentation/screens/setting_screen.dart';
 import '../presentation/screens/splash_screen.dart';
 
-// GoRouterのインスタンスをRiverpodのProviderとして定義・一元管理するファイル
-// _RouterRefreshNotifierクラスにRefを渡すことで、ルーターの初期化中であっても安全にストレージのロード完了を監視可能に
-// 起動時はSplashScreen（/splash）で待機し、設定データの非同期読み込みが完了した瞬間にメイン画面（/）へ安全に自動リダイレクトする設計
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
-
-    // ➔ RiverpodのRefを渡して、状態変化を安全に購読する
     refreshListenable: _RouterRefreshNotifier(ref),
-
     redirect: (context, state) {
       final container = ProviderScope.containerOf(context);
-      final settingStorage = container.read(settingStorageProvider);
 
-      // まだデータの読み込みが終わっていない（AsyncLoadingなど）場合
-      if (settingStorage.valueOrNull == null) {
+      print('=== [GoRouter Redirect Check] 開始 ===');
+      final settingStorage = container.read(settingStorageProvider);
+      final mapUrlSource = container.read(mapUrlSourceProvider);
+      final mapCamera = container.read(mapCameraProvider);
+      final currentUrlMap = container.read(mapSelectionProvider);
+
+      print('  - settingStorage 状態: ${settingStorage.runtimeType} (hasValue: ${settingStorage.hasValue})');
+      print('  - mapUrlSource 状態: ${mapUrlSource.runtimeType} (hasValue: ${mapUrlSource.hasValue})');
+      print('  - mapCamera 状態: ${mapCamera.runtimeType}');
+      print('  - mapSelection (currentUrlMap) 状態: $currentUrlMap');
+
+      if (settingStorage.valueOrNull == null ||
+          mapUrlSource.valueOrNull == null ||
+          currentUrlMap == null) {
+        print('  => 必須データまたはマップ選択の初期化が未完了のため [/splash] に留まります');
+        print('=== [GoRouter Redirect Check] 終了 ===');
         return '/splash';
       }
 
-      // データのロードが完了しており、かつ現在スプラッシュ画面にいる場合
       if (state.uri.toString() == '/splash') {
+        print('  => マップ選択まで全データロード完了！ [/] (メイン画面) へ遷移します');
+        print('=== [GoRouter Redirect Check] 終了 ===');
         return '/';
       }
 
-      // 通常の画面遷移時はそのまま進む
+      print('  => 通常遷移のためリダイレクトなし');
+      print('=== [GoRouter Redirect Check] 終了 ===');
       return null;
     },
-
     routes: [
       GoRoute(
         path: '/splash',
@@ -56,12 +69,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Riverpodの非同期プロバイダーの完了イベントをGoRouterが購読できるChangeNotifier形式に変換する内部クラス
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(Ref ref) {
-    // ➔ appRouter変数を直接触るのではなく、Refを使って安全にストレージの状態を監視
-    // 設定ファイルの読み込みが完了（LoadingからDataに遷移）した瞬間に、ルーターへ通知（notifyListeners）を送る
-    ref.listen(settingStorageProvider, (_, __) {
+    ref.listen(settingStorageProvider, (prev, next) {
+      print('[RouterListen] settingStorageProvider が更新されました');
+      notifyListeners();
+    });
+    ref.listen(mapCameraProvider, (prev, next) {
+      print('[RouterListen] mapCameraProvider が更新されました');
+      notifyListeners();
+    });
+    ref.listen(mapUrlSourceProvider, (prev, next) {
+      print('[RouterListen] mapUrlSourceProvider が更新されました');
+      notifyListeners();
+    });
+    // マップ選択の状態が変わった（null から初期マップがセットされた）瞬間も検知してルーターを再評価する
+    ref.listen(mapSelectionProvider, (prev, next) {
+      print('[RouterListen] mapSelectionProvider (選択マップ) が更新されました: $next');
       notifyListeners();
     });
   }
@@ -74,7 +98,6 @@ class _AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
