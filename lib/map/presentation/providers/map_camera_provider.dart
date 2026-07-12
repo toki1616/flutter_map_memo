@@ -1,28 +1,63 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/datasources/map_camera_storage_datasource.dart';
+import '../../data/repositories/map_camera_repository_impl.dart';
 import '../../domain/entities/map_camera_state.dart';
+import '../../domain/repositories/map_camera_repository.dart';
 
-// Flutterマップのカメラ状態（中心座標やズームレベル）をアプリ全体で一元管理・監視するためのプロバイダーファイル
-// 地図がドラッグやピンチ操作で移動した際に、最新の値をリアルタイムにUIへ同期させるための更新メソッドを提供
+// ── DI ───────────────────────────────────────────────────────────────────
+
+final mapCameraStorageDataSourceProvider = Provider<MapCameraStorageDataSource>(
+  (ref) => MapCameraStorageDataSourceImpl(),
+);
+
+final mapCameraRepositoryProvider = Provider<MapCameraRepository>(
+  (ref) => MapCameraRepositoryImpl(ref.watch(mapCameraStorageDataSourceProvider)),
+);
+
+// ── StateNotifier ─────────────────────────────────────────────────────────
+
 class MapCameraNotifier extends StateNotifier<MapCameraState> {
-  MapCameraNotifier() : super(const MapCameraState());
+  final MapCameraRepository _repository;
 
-  // 地図の移動（カメラの変更）を検知した時に、状態を更新するメソッド
-  void updateCamera(double latitude, double longitude, double zoom) {
-    // わずかな変更でも無駄な再描画（リビルド）が走らないよう、値が変わっている場合のみ更新
-    if (state.latitude == latitude &&
-        state.longitude == longitude &&
-        state.zoom == zoom) {
-      return;
+  // 初期起動時（キャッシュがまだ無いとき）のデフォルト位置（東京駅周辺）
+  static const double _defaultLat = 35.681236;
+  static const double _defaultLng = 139.767125;
+  static const double _defaultZoom = 12.0;
+
+  MapCameraNotifier(this._repository)
+      : super(const MapCameraState(
+          latitude: _defaultLat,
+          longitude: _defaultLng,
+          zoom: _defaultZoom,
+        )) {
+    // 💡 起動時に専用のストレージファイルからカメラ位置を自動で復元
+    _loadSavedCamera();
+  }
+
+  /// ストレージファイルからカメラ状態を読み出す
+  Future<void> _loadSavedCamera() async {
+    final cached = await _repository.getLastCamera();
+    if (cached != null) {
+      state = cached;
     }
-    state = state.copyWith(
+  }
+
+  /// 画面が動かされたときに呼び出され、状態更新と専用ファイルへの自動保存を行う
+  void updateCamera(double latitude, double longitude, double zoom) {
+    final updated = state.copyWith(
       latitude: latitude,
       longitude: longitude,
       zoom: zoom,
     );
+    
+    state = updated;
+
+    // 非同期で位置情報ストレージにのみ書き込みを実施（settings.jsonは触らない）
+    _repository.saveCamera(updated);
   }
 }
 
-// 画面側から watch して現在の地図位置を取得したり、変更を通知するために使用するプロバイダー
-final mapCameraProvider = StateNotifierProvider<MapCameraNotifier, MapCameraState>((ref) {
-  return MapCameraNotifier();
+final mapCameraProvider =
+    StateNotifierProvider<MapCameraNotifier, MapCameraState>((ref) {
+  return MapCameraNotifier(ref.watch(mapCameraRepositoryProvider));
 });

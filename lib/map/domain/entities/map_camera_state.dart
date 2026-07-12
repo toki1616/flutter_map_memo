@@ -1,17 +1,15 @@
 import 'package:equatable/equatable.dart';
 
-/// Flutterマップの現在のカメラ状態（中心座標とズームレベル）のデータを一つに集約して保持するドメインエンティティファイル
-/// 不変（Immutable）なクラスとして定義し、地図が動くたびの細かな状態の変更検知を効率化
+/// 次回起動時用に最後に表示していた地図のカメラ状態を保持するドメインモデル
 class MapCameraState extends Equatable {
   final double latitude;
   final double longitude;
   final double zoom;
 
   const MapCameraState({
-    // アプリの初期表示位置を指定
-    this.latitude = 35.681236,
-    this.longitude = 139.767125,
-    this.zoom = 13.0,
+    required this.latitude,
+    required this.longitude,
+    required this.zoom,
   });
 
   MapCameraState copyWith({
