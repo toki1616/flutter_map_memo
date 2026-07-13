@@ -5,6 +5,8 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/presentation/widgets/app_floating_button.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../pin/presentation/providers/pin_provider.dart';
 import '../../../pin/presentation/widgets/add_pin_bottom_sheet.dart';
 import '../providers/map_camera_provider.dart';
 import '../providers/map_fab_provider.dart';
@@ -44,48 +46,36 @@ class MapFabButtons extends ConsumerWidget {
         if (fabState.isFolderSelected) ...[
           AppFloatingButton(
             heroTag: 'pinAdd',
-            icon: Icon(
-              fabState.isPinAddMode
-                  ? Icons.add_location
-                  : Icons.add_location_alt_outlined,
+            icon: const Icon(
+              Icons.add_location_alt_outlined,
               color: Colors.white,
             ),
-            backgroundColor: fabState.isPinAddMode
-                ? const Color(0xFFD4A017)
-                : const Color(0xFF2D6A4F),
-            tooltip: fabState.isPinAddMode ? '中央の位置にピンを追加' : 'ピン追加モード',
+            backgroundColor: AppTheme.pinAddButton,
+            tooltip: '中央の位置にピンを追加',
             baseHeight: buttonSize,
             onPressed: () {
-              if (fabState.isPinAddMode) {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => Padding(
-                    padding: MediaQuery.of(context).viewInsets,
-                    child: AddPinBottomSheet(
-                      position: currentCenter,
-                      onSave: ({
-                        required String title,
-                        required String memo,
-                        required String colorHex,
-                      }) async {
-                        await ref
-                            .read(mapFabProvider.notifier)
-                            .addPinAtCenter(
-                          position: currentCenter,
-                          title: title,
-                          memo: memo,
-                          colorHex: colorHex,
-                        );
-                      },
-                    ),
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => Padding(
+                  padding: MediaQuery.of(context).viewInsets,
+                  child: AddPinBottomSheet(
+                    position: currentCenter,
+                    onSave: ({
+                      required String title,
+                      required String memo,
+                      required String colorHex,
+                    }) async {
+                      await ref.read(pinProvider.notifier).addPin(
+                        position: currentCenter,
+                        title: title,
+                        memo: memo,
+                        colorHex: colorHex,
+                      );
+                    },
                   ),
-                ).then((_) {
-                  ref.read(mapFabProvider.notifier).disablePinAddMode();
-                });
-              } else {
-                ref.read(mapFabProvider.notifier).enablePinAddMode();
-              }
+                ),
+              );
             },
           ),
           const SizedBox(height: 10),
@@ -101,8 +91,9 @@ class MapFabButtons extends ConsumerWidget {
                   : Icons.fiber_manual_record,
               color: Colors.white,
             ),
-            backgroundColor:
-            fabState.isTracking ? Colors.red[700] : Colors.red,
+            backgroundColor: fabState.isTracking
+                ? AppTheme.trackStopButton
+                : AppTheme.trackRecordButton,
             tooltip: fabState.isTracking ? '記録を停止' : '移動記録を開始',
             baseHeight: buttonSize,
             onPressed: () async {
@@ -128,8 +119,9 @@ class MapFabButtons extends ConsumerWidget {
                   ? Colors.white
                   : Colors.grey[600],
             ),
-            backgroundColor:
-            fabState.isFollowingLocation ? Colors.blue : Colors.white,
+            backgroundColor: fabState.isFollowingLocation
+                ? AppTheme.locationFollowButton
+                : AppTheme.locationUnfollowButton,
             tooltip: fabState.isFollowingLocation ? '追従を解除' : '現在地に追従',
             baseHeight: buttonSize,
             onPressed: () {
@@ -149,7 +141,7 @@ class MapFabButtons extends ConsumerWidget {
         AppFloatingButton(
           heroTag: 'zoomIn',
           icon: const Icon(Icons.add, color: Colors.black),
-          backgroundColor: Colors.white,
+          backgroundColor: AppTheme.zoomButton,
           baseHeight: buttonSize,
           onPressed: () {
             try {
@@ -165,7 +157,7 @@ class MapFabButtons extends ConsumerWidget {
         AppFloatingButton(
           heroTag: 'zoomOut',
           icon: const Icon(Icons.remove, color: Colors.black),
-          backgroundColor: Colors.white,
+          backgroundColor: AppTheme.zoomButton,
           baseHeight: buttonSize,
           onPressed: () {
             try {
