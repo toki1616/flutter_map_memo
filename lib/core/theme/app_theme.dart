@@ -12,6 +12,14 @@ class AppTheme {
   static const Color danger = Color(0xFFD62828);
   static const Color trackColor = Color(0xFFE07B39);
 
+  // ── MAP FAB COLORS ────────────────────────────────────────────────
+  static const Color pinAddButton = Color(0xFF2D6A4F);      // ピン追加ボタン
+  static const Color trackRecordButton = Color(0xFFD62828);  // 移動記録開始（赤）
+  static final Color trackStopButton = Colors.red[700]!;    // 移動記録停止（濃い赤）
+  static const Color locationFollowButton = Colors.blue;    // 現在地追従中（青）
+  static const Color locationUnfollowButton = Colors.white; // 現在地未追従（白）
+  static const Color zoomButton = Colors.white;             // ズームボタン（白）
+
   static ThemeData getLight(double textScale) {
     return ThemeData(
       useMaterial3: true,

@@ -49,7 +49,7 @@ class LocationDataSourceImpl implements LocationDataSource {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: _buildLocationSettings(),
       );
-      //print("【GeolocatorDebug】単発現在地取得成功: Lat=${position.latitude}, Lng=${position.longitude}");
+      print("【GeolocatorDebug】単発現在地取得成功: Lat=${position.latitude}, Lng=${position.longitude}");
       return _toLocationData(position);
     } catch (e) {
       print("【GeolocatorDebug】単発現在地取得失敗: $e");
@@ -103,7 +103,7 @@ class LocationDataSourceImpl implements LocationDataSource {
       yield* Geolocator.getPositionStream(
         locationSettings: _buildLocationSettings(),
       ).map((Position pos) {
-        print("【GeolocatorDebug】位置情報更新: Lat=${pos.latitude}, Lng=${pos.longitude}, 精度=${pos.accuracy}m");
+        //print("【GeolocatorDebug】位置情報更新: Lat=${pos.latitude}, Lng=${pos.longitude}, 精度=${pos.accuracy}m");
         return _toLocationData(pos);
       });
     } catch (e) {
