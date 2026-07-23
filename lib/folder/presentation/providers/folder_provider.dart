@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/app_path_utils.dart';
 import '../../../core/usecases/usecase.dart';
 import '../../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../data/datasources/folder_local_datasource.dart';
@@ -57,9 +58,10 @@ class FolderNotifier extends AsyncNotifier<FolderSelection?> {
     // AsyncLoading ループが発生するため
     final settings = await ref.read(settingStorageProvider.future);
 
-    return ref
+    final selectedFolder = await ref
         .read(loadSavedFolderUseCaseProvider)
         .call(const NoParams(), savedPath: settings.folderPath);
+    return selectedFolder ?? await _appStorageFolder();
   }
 
   /// OS 標準ダイアログでフォルダを選択する
@@ -76,8 +78,8 @@ class FolderNotifier extends AsyncNotifier<FolderSelection?> {
       final result = await ref
           .read(pickFolderUseCaseProvider)
           .call(const NoParams());
-      // キャンセル時は null → AsyncData(null) にして Loading を解除する
-      state = AsyncData(result);
+      // キャンセル時もアプリ内ストレージへ戻し、ピン／トラック操作を継続可能にする。
+      state = AsyncData(result ?? await _appStorageFolder());
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -86,9 +88,17 @@ class FolderNotifier extends AsyncNotifier<FolderSelection?> {
   /// フォルダ選択をリセットする
   Future<void> clear() async {
     await ref.read(clearFolderUseCaseProvider).call(const NoParams());
-    state = const AsyncData(null);
+    state = AsyncData(await _appStorageFolder());
   }
+
+  Future<FolderSelection> _appStorageFolder() async => FolderSelection(
+    path: await AppPathUtils.getApplicationDocumentsPath(),
+    name: 'アプリ内ストレージ',
+    localMapNames: const [],
+    isAppStorage: true,
+  );
 }
 
-final folderProvider =
-    AsyncNotifierProvider<FolderNotifier, FolderSelection?>(FolderNotifier.new);
+final folderProvider = AsyncNotifierProvider<FolderNotifier, FolderSelection?>(
+  FolderNotifier.new,
+);

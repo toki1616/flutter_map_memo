@@ -244,6 +244,7 @@ class SettingScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
+                    '外部フォルダを選択していない場合はアプリ内に保存します。\n'
                     '選択フォルダ内の map/ からタイルを読み込み、\n'
                     'save_data/map_data/pin.json にピンを保存します。\n'
                     'save_data/map_data/track_log/ に移動記録を保存します。',
@@ -263,26 +264,25 @@ class SettingScreen extends ConsumerWidget {
                       ),
                     ),
                     data: (folder) => folder == null
-                        ? Text(
-                            '未選択',
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.muted,
-                            ),
-                          )
+                        ? const SizedBox.shrink()
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  const Icon(
-                                    Icons.folder,
+                                  Icon(
+                                    folder.isAppStorage
+                                        ? Icons.phone_android
+                                        : Icons.folder,
                                     color: AppTheme.primary,
                                     size: 18,
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      folder.name,
+                                      folder.isAppStorage
+                                          ? 'アプリ内ストレージ（外部フォルダ未選択）'
+                                          : folder.name,
                                       style: textTheme.bodyMedium?.copyWith(
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -312,7 +312,7 @@ class SettingScreen extends ConsumerWidget {
                       onTap: () =>
                           ref.read(folderProvider.notifier).pickFolder(),
                     ),
-                    data: (folder) => folder == null
+                    data: (folder) => folder == null || folder.isAppStorage
                         ? _PickButton(
                             label: 'フォルダを選択',
                             onTap: () =>
