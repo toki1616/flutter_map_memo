@@ -23,8 +23,10 @@ class TrackRepositoryImpl implements TrackRepository {
     await _dataSource.delete(rootPath, id);
   }
 
-  @override
-  Future<void> deleteOlderThan(String rootPath, int days) async {
-    await _dataSource.deleteOlderThan(rootPath, days);
-  }
+  // 機能: DataSource の古いログ削除処理へ委譲する。
+  // 状態: 自動削除を停止中のため未使用。
+  // @override
+  // Future<void> deleteOlderThan(String rootPath, int days) async {
+  //   await _dataSource.deleteOlderThan(rootPath, days);
+  // }
 }

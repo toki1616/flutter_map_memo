@@ -12,6 +12,7 @@ abstract class TrackRepository {
   /// IDに対応するトラックログを削除する
   Future<void> delete(String rootPath, String id);
 
-  /// 指定日数より古いトラックログを一括削除する
-  Future<void> deleteOlderThan(String rootPath, int days);
+  // 機能: 指定日数より古いトラックログを一括削除する。
+  // 状態: 自動削除を停止中のため未使用。
+  // Future<void> deleteOlderThan(String rootPath, int days);
 }

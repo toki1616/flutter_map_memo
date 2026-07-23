@@ -29,7 +29,7 @@ class FolderRepositoryImpl implements FolderRepository {
     if (path == null) return null;
 
     // フォルダが移動・削除されていたらクリアして null を返す
-    if (!await Directory(path).exists()) {
+    if (!await _dataSource.folderExists(path)) {
       await _dataSource.clearFolderPath();
       return null;
     }

@@ -7,16 +7,42 @@ class TrackPoint extends Equatable {
   final double longitude;
   final double accuracy;
   final DateTime timestamp;
+  final double? altitude;
+  final double? altitudeAccuracy;
+  final double? heading;
+  final double? headingAccuracy;
+  final double? speed;
+  final double? speedAccuracy;
+  final int? floor;
 
   const TrackPoint({
     required this.latitude,
     required this.longitude,
     required this.accuracy,
     required this.timestamp,
+    this.altitude,
+    this.altitudeAccuracy,
+    this.heading,
+    this.headingAccuracy,
+    this.speed,
+    this.speedAccuracy,
+    this.floor,
   });
 
   @override
-  List<Object> get props => [latitude, longitude, accuracy, timestamp];
+  List<Object?> get props => [
+    latitude,
+    longitude,
+    accuracy,
+    timestamp,
+    altitude,
+    altitudeAccuracy,
+    heading,
+    headingAccuracy,
+    speed,
+    speedAccuracy,
+    floor,
+  ];
 }
 
 /// 1回の移動記録セッション全体を表すドメインエンティティ
@@ -55,7 +81,8 @@ class TrackLog extends Equatable {
     const r = 6371.0;
     final dLat = _toRad(b.latitude - a.latitude);
     final dLon = _toRad(b.longitude - a.longitude);
-    final h = math.pow(math.sin(dLat / 2), 2) +
+    final h =
+        math.pow(math.sin(dLat / 2), 2) +
         math.cos(_toRad(a.latitude)) *
             math.cos(_toRad(b.latitude)) *
             math.pow(math.sin(dLon / 2), 2);
@@ -65,11 +92,11 @@ class TrackLog extends Equatable {
   double _toRad(double deg) => deg * math.pi / 180;
 
   TrackLog copyWith({DateTime? endedAt, List<TrackPoint>? points}) => TrackLog(
-        id: id,
-        startedAt: startedAt,
-        endedAt: endedAt ?? this.endedAt,
-        points: points ?? this.points,
-      );
+    id: id,
+    startedAt: startedAt,
+    endedAt: endedAt ?? this.endedAt,
+    points: points ?? this.points,
+  );
 
   @override
   List<Object?> get props => [id, startedAt, endedAt, points];

@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../folder/presentation/providers/folder_provider.dart';
-import '../../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../data/datasources/track_local_datasource.dart';
 import '../../data/repositories/track_repository_impl.dart';
 import '../../domain/entities/track_log.dart';
@@ -26,9 +25,11 @@ final saveTrackUseCaseProvider = Provider(
 final deleteTrackUseCaseProvider = Provider(
   (ref) => DeleteTrackUseCase(ref.watch(trackRepositoryProvider)),
 );
-final deleteOldTracksUseCaseProvider = Provider(
-  (ref) => DeleteOldTracksUseCase(ref.watch(trackRepositoryProvider)),
-);
+// 機能: 指定日数より古いログを削除する UseCase を DI する。
+// 状態: 自動削除を停止中のため未使用。
+// final deleteOldTracksUseCaseProvider = Provider(
+//   (ref) => DeleteOldTracksUseCase(ref.watch(trackRepositoryProvider)),
+// );
 
 // ── 保存済みトラックログ一覧 ───────────────────────────────────────────────
 
@@ -38,18 +39,10 @@ class TrackListNotifier extends AsyncNotifier<List<TrackLog>> {
     final folder = ref.watch(folderProvider).valueOrNull;
     if (folder == null) return [];
 
-    // 設定の表示期間フィルタを適用して読み込む
-    final settings = ref.watch(settingStorageProvider).valueOrNull;
-    final displayDays = settings?.trackDisplayDays;
-
-    final logs = await ref
+    // 一覧は全ログを保持する。地図表示時の期間フィルタは MapScreen が適用する。
+    return ref
         .read(loadAllTracksUseCaseProvider)
         .call(TrackRootPathParams(folder.path));
-
-    if (displayDays == null || displayDays <= 0) return logs;
-
-    final threshold = DateTime.now().subtract(Duration(days: displayDays));
-    return logs.where((l) => l.startedAt.isAfter(threshold)).toList();
   }
 
   Future<void> reload() async {
@@ -76,21 +69,98 @@ class TrackListNotifier extends AsyncNotifier<List<TrackLog>> {
     );
   }
 
-  /// 古いログを設定に従って削除する（アプリ起動時や設定変更時に呼ぶ）
-  Future<void> deleteOldLogs() async {
-    final folder = ref.read(folderProvider).valueOrNull;
-    if (folder == null) return;
-    final settings = ref.read(settingStorageProvider).valueOrNull;
-    final days = settings?.trackRetentionDays;
-    if (days == null || days <= 0) return;
-    await ref
-        .read(deleteOldTracksUseCaseProvider)
-        .call(DeleteOldTracksParams(rootPath: folder.path, days: days));
-    await reload();
-  }
+  // 機能: 設定の日数より古いログを削除して、一覧を再読み込みする。
+  // 状態: 自動削除を停止中。ログは一覧画面でユーザーが明示的に削除する。
+  // Future<void> deleteOldLogs() async {
+  //   final folder = ref.read(folderProvider).valueOrNull;
+  //   if (folder == null) return;
+  //   final settings = ref.read(settingStorageProvider).valueOrNull;
+  //   final days = settings?.trackRetentionDays;
+  //   if (days == null || days <= 0) return;
+  //   await ref
+  //       .read(deleteOldTracksUseCaseProvider)
+  //       .call(DeleteOldTracksParams(rootPath: folder.path, days: days));
+  //   await reload();
+  // }
 }
 
 final trackListProvider =
     AsyncNotifierProvider<TrackListNotifier, List<TrackLog>>(
-  TrackListNotifier.new,
-);
+      TrackListNotifier.new,
+    );
+
+/// 一覧画面でチェックされたトラック ID。
+/// 削除や「地図に表示」の操作対象としてアプリ起動中は保持する。
+class TrackListSelectionNotifier extends StateNotifier<Set<String>> {
+  TrackListSelectionNotifier() : super({});
+
+  void setSelected(String id, bool selected) {
+    final updated = {...state};
+    if (selected) {
+      updated.add(id);
+    } else {
+      updated.remove(id);
+    }
+    state = updated;
+  }
+
+  void clear() => state = {};
+
+  void removeIds(Iterable<String> ids) {
+    state = {...state}..removeAll(ids);
+  }
+}
+
+final trackListSelectionProvider =
+    StateNotifierProvider<TrackListSelectionNotifier, Set<String>>((ref) {
+      final notifier = TrackListSelectionNotifier();
+      // データセット切替後に、前フォルダのログ ID を選択対象として残さない。
+      ref.listen(folderProvider, (_, __) => notifier.clear());
+      return notifier;
+    });
+
+/// 地図のトラック表示条件。
+///
+/// [settingsPeriod] は設定の表示期間に従い、[selectedOnly] は一覧で明示的に
+/// 「地図に表示」したログだけを表示する。一覧のチェック状態とは独立させる。
+enum TrackMapFilterMode { settingsPeriod, selectedOnly }
+
+class TrackMapFilter {
+  final TrackMapFilterMode mode;
+  final Set<String> selectedIds;
+
+  const TrackMapFilter.settingsPeriod()
+    : mode = TrackMapFilterMode.settingsPeriod,
+      selectedIds = const {};
+
+  const TrackMapFilter.selectedOnly(Set<String> ids)
+    : mode = TrackMapFilterMode.selectedOnly,
+      selectedIds = ids;
+}
+
+class TrackMapFilterNotifier extends StateNotifier<TrackMapFilter> {
+  TrackMapFilterNotifier() : super(const TrackMapFilter.settingsPeriod());
+
+  void showSettingsPeriod() => state = const TrackMapFilter.settingsPeriod();
+
+  void showSelected(Iterable<String> ids) {
+    final selectedIds = ids.toSet();
+    state = selectedIds.isEmpty
+        ? const TrackMapFilter.settingsPeriod()
+        : TrackMapFilter.selectedOnly(selectedIds);
+  }
+
+  void removeDeletedIds(Iterable<String> ids) {
+    if (state.mode != TrackMapFilterMode.selectedOnly) return;
+    final remaining = {...state.selectedIds}..removeAll(ids);
+    showSelected(remaining);
+  }
+}
+
+final trackMapFilterProvider =
+    StateNotifierProvider<TrackMapFilterNotifier, TrackMapFilter>((ref) {
+      final notifier = TrackMapFilterNotifier();
+      // データセット切替後は、前フォルダの選択ログではなく期間設定表示へ戻す。
+      ref.listen(folderProvider, (_, __) => notifier.showSettingsPeriod());
+      return notifier;
+    });

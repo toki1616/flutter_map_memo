@@ -15,9 +15,8 @@ final settingStorageDataSourceProvider = Provider<SettingStorageDataSource>(
 );
 
 final settingStorageRepositoryProvider = Provider<SettingStorageRepository>(
-  (ref) => SettingStorageRepositoryImpl(
-    ref.watch(settingStorageDataSourceProvider),
-  ),
+  (ref) =>
+      SettingStorageRepositoryImpl(ref.watch(settingStorageDataSourceProvider)),
 );
 
 // ── Notifier ──────────────────────────────────────────────────────────────
@@ -25,8 +24,9 @@ final settingStorageRepositoryProvider = Provider<SettingStorageRepository>(
 class SettingStorageNotifier extends AsyncNotifier<SettingStorageData> {
   @override
   Future<SettingStorageData> build() async {
-    final data =
-        await ref.read(settingStorageRepositoryProvider).getSettingData();
+    final data = await ref
+        .read(settingStorageRepositoryProvider)
+        .getSettingData();
     _applyOrientation(data.orientationType);
     return data;
   }
@@ -73,10 +73,12 @@ class SettingStorageNotifier extends AsyncNotifier<SettingStorageData> {
     await _save(current.copyWith(trackDisplayDaysType: newType));
   }
 
-  Future<void> saveTrackRetentionDays(TrackRetentionDaysType newType) async {
-    final current = state.valueOrNull ?? const SettingStorageData();
-    await _save(current.copyWith(trackRetentionDaysType: newType));
-  }
+  // 機能: 選択した保存期間を settings.json に書き込む。
+  // 状態: 自動削除を停止中のため、この更新 API は無効化している。
+  // Future<void> saveTrackRetentionDays(TrackRetentionDaysType newType) async {
+  //   final current = state.valueOrNull ?? const SettingStorageData();
+  //   await _save(current.copyWith(trackRetentionDaysType: newType));
+  // }
 
   void _applyOrientation(OrientationType type) {
     SystemChrome.setPreferredOrientations(type.orientations);
@@ -85,5 +87,5 @@ class SettingStorageNotifier extends AsyncNotifier<SettingStorageData> {
 
 final settingStorageProvider =
     AsyncNotifierProvider<SettingStorageNotifier, SettingStorageData>(
-  SettingStorageNotifier.new,
-);
+      SettingStorageNotifier.new,
+    );
