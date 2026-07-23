@@ -11,6 +11,7 @@ import '../../../location/domain/entities/location_data.dart';
 import '../../../location/presentation/providers/location_provider.dart';
 import '../../../pin/presentation/widgets/pin_marker_layer.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
+import '../../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../../track/domain/entities/track_log.dart';
 import '../../../track/presentation/providers/track_provider.dart';
 import '../providers/map_camera_provider.dart';
@@ -57,10 +58,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // 保存済みトラックログ一覧
     final trackLogsAsync = ref.watch(trackListProvider);
     final trackLogs = trackLogsAsync.valueOrNull ?? [];
-    final displayedTrackIds = ref.watch(trackMapDisplayProvider);
-    final visibleTrackLogs = displayedTrackIds == null
+    final trackMapFilter = ref.watch(trackMapFilterProvider);
+    final displayDays =
+        ref.watch(settingStorageProvider).valueOrNull?.trackDisplayDays ?? 7;
+    final visibleTrackLogs =
+        trackMapFilter.mode == TrackMapFilterMode.selectedOnly
         ? trackLogs
-        : trackLogs.where((log) => displayedTrackIds.contains(log.id)).toList();
+              .where((log) => trackMapFilter.selectedIds.contains(log.id))
+              .toList()
+        : displayDays <= 0
+        ? trackLogs
+        : trackLogs
+              .where(
+                (log) => log.startedAt.isAfter(
+                  DateTime.now().subtract(Duration(days: displayDays)),
+                ),
+              )
+              .toList();
 
     // 現在記録中のトラックログ（リアルタイム表示用）
     final currentTrackLog = ref.watch(mapFabProvider.notifier).currentTrackLog;

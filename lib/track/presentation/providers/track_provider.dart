@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../folder/presentation/providers/folder_provider.dart';
-import '../../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../data/datasources/track_local_datasource.dart';
 import '../../data/repositories/track_repository_impl.dart';
 import '../../domain/entities/track_log.dart';
@@ -40,18 +39,10 @@ class TrackListNotifier extends AsyncNotifier<List<TrackLog>> {
     final folder = ref.watch(folderProvider).valueOrNull;
     if (folder == null) return [];
 
-    // 設定の表示期間フィルタを適用して読み込む
-    final settings = ref.watch(settingStorageProvider).valueOrNull;
-    final displayDays = settings?.trackDisplayDays;
-
-    final logs = await ref
+    // 一覧は全ログを保持する。地図表示時の期間フィルタは MapScreen が適用する。
+    return ref
         .read(loadAllTracksUseCaseProvider)
         .call(TrackRootPathParams(folder.path));
-
-    if (displayDays == null || displayDays <= 0) return logs;
-
-    final threshold = DateTime.now().subtract(Duration(days: displayDays));
-    return logs.where((l) => l.startedAt.isAfter(threshold)).toList();
   }
 
   Future<void> reload() async {
@@ -98,25 +89,72 @@ final trackListProvider =
       TrackListNotifier.new,
     );
 
-/// 地図に表示するトラックを管理する。
-///
-/// null の間は従来どおり全トラックを表示し、一覧画面から「地図に表示」を
-/// 実行した後は、指定された ID のトラックだけを表示する。
-class TrackMapDisplayNotifier extends StateNotifier<Set<String>?> {
-  TrackMapDisplayNotifier() : super(null);
+/// 一覧画面でチェックされたトラック ID。
+/// 削除や「地図に表示」の操作対象としてアプリ起動中は保持する。
+class TrackListSelectionNotifier extends StateNotifier<Set<String>> {
+  TrackListSelectionNotifier() : super({});
 
-  void showOnly(Iterable<String> ids) {
-    state = ids.toSet();
+  void setSelected(String id, bool selected) {
+    final updated = {...state};
+    if (selected) {
+      updated.add(id);
+    } else {
+      updated.remove(id);
+    }
+    state = updated;
   }
 
+  void clear() => state = {};
+
   void removeIds(Iterable<String> ids) {
-    if (state == null) return;
-    final updated = {...state!}..removeAll(ids);
-    state = updated;
+    state = {...state}..removeAll(ids);
   }
 }
 
-final trackMapDisplayProvider =
-    StateNotifierProvider<TrackMapDisplayNotifier, Set<String>?>(
-      (ref) => TrackMapDisplayNotifier(),
+final trackListSelectionProvider =
+    StateNotifierProvider<TrackListSelectionNotifier, Set<String>>(
+      (ref) => TrackListSelectionNotifier(),
+    );
+
+/// 地図のトラック表示条件。
+///
+/// [settingsPeriod] は設定の表示期間に従い、[selectedOnly] は一覧で明示的に
+/// 「地図に表示」したログだけを表示する。一覧のチェック状態とは独立させる。
+enum TrackMapFilterMode { settingsPeriod, selectedOnly }
+
+class TrackMapFilter {
+  final TrackMapFilterMode mode;
+  final Set<String> selectedIds;
+
+  const TrackMapFilter.settingsPeriod()
+      : mode = TrackMapFilterMode.settingsPeriod,
+        selectedIds = const {};
+
+  const TrackMapFilter.selectedOnly(Set<String> ids)
+      : mode = TrackMapFilterMode.selectedOnly,
+        selectedIds = ids;
+}
+
+class TrackMapFilterNotifier extends StateNotifier<TrackMapFilter> {
+  TrackMapFilterNotifier() : super(const TrackMapFilter.settingsPeriod());
+
+  void showSettingsPeriod() => state = const TrackMapFilter.settingsPeriod();
+
+  void showSelected(Iterable<String> ids) {
+    final selectedIds = ids.toSet();
+    state = selectedIds.isEmpty
+        ? const TrackMapFilter.settingsPeriod()
+        : TrackMapFilter.selectedOnly(selectedIds);
+  }
+
+  void removeDeletedIds(Iterable<String> ids) {
+    if (state.mode != TrackMapFilterMode.selectedOnly) return;
+    final remaining = {...state.selectedIds}..removeAll(ids);
+    showSelected(remaining);
+  }
+}
+
+final trackMapFilterProvider =
+    StateNotifierProvider<TrackMapFilterNotifier, TrackMapFilter>(
+      (ref) => TrackMapFilterNotifier(),
     );

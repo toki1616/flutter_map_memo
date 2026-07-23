@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../../setting/presentation/providers/text_scale_provider.dart';
 import '../providers/track_provider.dart';
 
@@ -14,11 +15,11 @@ class TrackLogListScreen extends ConsumerStatefulWidget {
 }
 
 class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
-  final Set<String> _selectedIds = {};
   bool _isDeleting = false;
 
   Future<void> _deleteSelected() async {
-    final count = _selectedIds.length;
+    final selectedIds = ref.read(trackListSelectionProvider);
+    final count = selectedIds.length;
     if (count == 0) return;
 
     final confirmed = await showDialog<bool>(
@@ -40,23 +41,24 @@ class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final ids = _selectedIds.toList();
+    final ids = selectedIds.toList();
     setState(() => _isDeleting = true);
     try {
       final notifier = ref.read(trackListProvider.notifier);
       for (final id in ids) {
         await notifier.deleteTrack(id);
       }
-      ref.read(trackMapDisplayProvider.notifier).removeIds(ids);
-      if (mounted) setState(_selectedIds.clear);
+      ref.read(trackListSelectionProvider.notifier).removeIds(ids);
+      ref.read(trackMapFilterProvider.notifier).removeDeletedIds(ids);
     } finally {
       if (mounted) setState(() => _isDeleting = false);
     }
   }
 
   void _showSelectedOnMap() {
-    if (_selectedIds.isEmpty) return;
-    ref.read(trackMapDisplayProvider.notifier).showOnly(_selectedIds);
+    final selectedIds = ref.read(trackListSelectionProvider);
+    if (selectedIds.isEmpty) return;
+    ref.read(trackMapFilterProvider.notifier).showSelected(selectedIds);
     context.go('/');
   }
 
@@ -64,7 +66,15 @@ class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
   Widget build(BuildContext context) {
     final tracksAsync = ref.watch(trackListProvider);
     final scale = ref.watch(textScaleProvider).scale;
-    final selectedCount = _selectedIds.length;
+    final selectedIds = ref.watch(trackListSelectionProvider);
+    final selectedCount = selectedIds.length;
+    final trackMapFilter = ref.watch(trackMapFilterProvider);
+    final displayPeriodLabel = ref
+            .watch(settingStorageProvider)
+            .valueOrNull
+            ?.trackDisplayDaysType
+            .label ??
+        '1週間';
 
     return Scaffold(
       appBar: AppBar(
@@ -74,7 +84,7 @@ class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
             tooltip: '選択を解除',
             onPressed: selectedCount == 0
                 ? null
-                : () => setState(_selectedIds.clear),
+                : ref.read(trackListSelectionProvider.notifier).clear,
             icon: const Icon(Icons.deselect),
           ),
         ],
@@ -83,42 +93,77 @@ class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('移動記録の読み込みに失敗しました: $error')),
         data: (tracks) {
-          if (tracks.isEmpty) {
-            return const Center(child: Text('保存済みの移動記録はありません'));
-          }
-          return ListView.separated(
-            padding: EdgeInsets.fromLTRB(
-              12 * scale,
-              12 * scale,
-              12 * scale,
-              96 * scale,
-            ),
-            itemCount: tracks.length,
-            separatorBuilder: (context, index) => SizedBox(height: 8 * scale),
-            itemBuilder: (context, index) {
-              final track = tracks[index];
-              final isSelected = _selectedIds.contains(track.id);
-              return Card(
-                child: CheckboxListTile(
-                  value: isSelected,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: Text(_formatDate(track.startedAt)),
-                  subtitle: Text(
-                    '${track.points.length} 点  ・  ${track.totalDistanceKm.toStringAsFixed(2)} km'
-                    '${track.endedAt == null ? '  ・  記録中' : ''}',
-                  ),
-                  onChanged: (selected) {
-                    setState(() {
-                      if (selected == true) {
-                        _selectedIds.add(track.id);
-                      } else {
-                        _selectedIds.remove(track.id);
-                      }
-                    });
-                  },
+          return Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  12 * scale,
+                  12 * scale,
+                  12 * scale,
+                  0,
                 ),
-              );
-            },
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.filter_alt_outlined),
+                    title: const Text('地図のトラック表示'),
+                    subtitle: Text(
+                      trackMapFilter.mode == TrackMapFilterMode.selectedOnly
+                          ? '選択した ${trackMapFilter.selectedIds.length}件を表示中'
+                          : '設定の表示期間: $displayPeriodLabel',
+                    ),
+                    trailing: trackMapFilter.mode ==
+                            TrackMapFilterMode.selectedOnly
+                        ? TextButton(
+                            onPressed: () {
+                              ref
+                                  .read(trackMapFilterProvider.notifier)
+                                  .showSettingsPeriod();
+                              ref
+                                  .read(trackListSelectionProvider.notifier)
+                                  .clear();
+                            },
+                            child: const Text('選択を解除して期間設定に戻す'),
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: tracks.isEmpty
+                    ? const Center(child: Text('保存済みの移動記録はありません'))
+                    : ListView.separated(
+                        padding: EdgeInsets.fromLTRB(
+                          12 * scale,
+                          12 * scale,
+                          12 * scale,
+                          96 * scale,
+                        ),
+                        itemCount: tracks.length,
+                        separatorBuilder: (context, index) =>
+                            SizedBox(height: 8 * scale),
+                        itemBuilder: (context, index) {
+                          final track = tracks[index];
+                          final isSelected = selectedIds.contains(track.id);
+                          return Card(
+                            child: CheckboxListTile(
+                              value: isSelected,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text(_formatDate(track.startedAt)),
+                              subtitle: Text(
+                                '${track.points.length} 点  ・  ${track.totalDistanceKm.toStringAsFixed(2)} km'
+                                '${track.endedAt == null ? '  ・  記録中' : ''}',
+                              ),
+                              onChanged: (selected) {
+                                ref
+                                    .read(trackListSelectionProvider.notifier)
+                                    .setSelected(track.id, selected == true);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),
