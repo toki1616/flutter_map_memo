@@ -73,13 +73,16 @@ class FolderNotifier extends AsyncNotifier<FolderSelection?> {
   ///   ※ build() は ref.read を使っているため再実行されず
   ///      ここで state = AsyncData(result) を明示的にセットして完了させる
   Future<void> pickFolder() async {
+    // 選択済みの外部フォルダがある場合、ダイアログのキャンセルでは
+    // 保存先をアプリ内ストレージへ切り替えず、現在の状態を維持する。
+    final previousFolder = state.valueOrNull;
     state = const AsyncLoading();
     try {
       final result = await ref
           .read(pickFolderUseCaseProvider)
           .call(const NoParams());
-      // キャンセル時もアプリ内ストレージへ戻し、ピン／トラック操作を継続可能にする。
-      state = AsyncData(result ?? await _appStorageFolder());
+      // 初回のキャンセル時のみアプリ内ストレージへフォールバックする。
+      state = AsyncData(result ?? previousFolder ?? await _appStorageFolder());
     } catch (e, st) {
       state = AsyncError(e, st);
     }
