@@ -8,6 +8,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.IOException
 
 class MainActivity : FlutterActivity() {
     companion object {
@@ -131,7 +132,9 @@ class MainActivity : FlutterActivity() {
                 result.error("file_error", "保存ファイルを作成できませんでした", null)
                 return
             }
-            contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(content) }
+            val outputStream = contentResolver.openOutputStream(file.uri, "wt")
+                ?: throw IOException("出力ストリームを開けませんでした")
+            outputStream.bufferedWriter().use { it.write(content) }
             result.success(null)
         } catch (error: Exception) {
             result.error("write_error", "ファイルを保存できませんでした", error.message)
@@ -146,7 +149,15 @@ class MainActivity : FlutterActivity() {
             return
         }
         val parent = resolveDirectory(root, parts.dropLast(1).joinToString("/"), false)
-        parent?.findFile(parts.last())?.delete()
+        val file = parent?.findFile(parts.last())
+        if (file == null) {
+            result.success(null)
+            return
+        }
+        if (!file.delete()) {
+            result.error("delete_error", "ファイルを削除できませんでした", null)
+            return
+        }
         result.success(null)
     }
 }
