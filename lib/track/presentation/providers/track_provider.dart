@@ -112,9 +112,12 @@ class TrackListSelectionNotifier extends StateNotifier<Set<String>> {
 }
 
 final trackListSelectionProvider =
-    StateNotifierProvider<TrackListSelectionNotifier, Set<String>>(
-      (ref) => TrackListSelectionNotifier(),
-    );
+    StateNotifierProvider<TrackListSelectionNotifier, Set<String>>((ref) {
+      final notifier = TrackListSelectionNotifier();
+      // データセット切替後に、前フォルダのログ ID を選択対象として残さない。
+      ref.listen(folderProvider, (_, __) => notifier.clear());
+      return notifier;
+    });
 
 /// 地図のトラック表示条件。
 ///
@@ -127,12 +130,12 @@ class TrackMapFilter {
   final Set<String> selectedIds;
 
   const TrackMapFilter.settingsPeriod()
-      : mode = TrackMapFilterMode.settingsPeriod,
-        selectedIds = const {};
+    : mode = TrackMapFilterMode.settingsPeriod,
+      selectedIds = const {};
 
   const TrackMapFilter.selectedOnly(Set<String> ids)
-      : mode = TrackMapFilterMode.selectedOnly,
-        selectedIds = ids;
+    : mode = TrackMapFilterMode.selectedOnly,
+      selectedIds = ids;
 }
 
 class TrackMapFilterNotifier extends StateNotifier<TrackMapFilter> {
@@ -155,6 +158,9 @@ class TrackMapFilterNotifier extends StateNotifier<TrackMapFilter> {
 }
 
 final trackMapFilterProvider =
-    StateNotifierProvider<TrackMapFilterNotifier, TrackMapFilter>(
-      (ref) => TrackMapFilterNotifier(),
-    );
+    StateNotifierProvider<TrackMapFilterNotifier, TrackMapFilter>((ref) {
+      final notifier = TrackMapFilterNotifier();
+      // データセット切替後は、前フォルダの選択ログではなく期間設定表示へ戻す。
+      ref.listen(folderProvider, (_, __) => notifier.showSettingsPeriod());
+      return notifier;
+    });
