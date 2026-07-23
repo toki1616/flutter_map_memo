@@ -9,6 +9,7 @@ import '../../map/presentation/providers/map_url_source_provider.dart';
 import '../../map/presentation/screens/map_screen.dart';
 import '../../setting/presentation/providers/setting_storage_provider.dart';
 import '../../setting/presentation/screens/setting_screen.dart';
+import '../../track/presentation/screens/track_log_list_screen.dart';
 import '../presentation/screens/splash_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -24,8 +25,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final mapCamera = container.read(mapCameraProvider);
       final currentUrlMap = container.read(mapSelectionProvider);
 
-      print('  - settingStorage 状態: ${settingStorage.runtimeType} (hasValue: ${settingStorage.hasValue})');
-      print('  - mapUrlSource 状態: ${mapUrlSource.runtimeType} (hasValue: ${mapUrlSource.hasValue})');
+      print(
+        '  - settingStorage 状態: ${settingStorage.runtimeType} (hasValue: ${settingStorage.hasValue})',
+      );
+      print(
+        '  - mapUrlSource 状態: ${mapUrlSource.runtimeType} (hasValue: ${mapUrlSource.hasValue})',
+      );
       print('  - mapCamera 状態: ${mapCamera.runtimeType}');
       print('  - mapSelection (currentUrlMap) 状態: $currentUrlMap');
 
@@ -55,13 +60,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => _AppShell(child: child),
         routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => const MapScreen(),
-          ),
+          GoRoute(path: '/', builder: (context, state) => const MapScreen()),
           GoRoute(
             path: '/setting',
             builder: (context, state) => const SettingScreen(),
+          ),
+          GoRoute(
+            path: '/track-logs',
+            builder: (context, state) => const TrackLogListScreen(),
           ),
         ],
       ),
@@ -101,10 +107,15 @@ class _AppShell extends StatelessWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: location == '/setting' ? 1 : 0,
+        selectedIndex: switch (location) {
+          '/setting' => 1,
+          '/track-logs' => 2,
+          _ => 0,
+        },
         onDestinationSelected: (i) {
           if (i == 0) context.go('/');
           if (i == 1) context.go('/setting');
+          if (i == 2) context.go('/track-logs');
         },
         destinations: const [
           NavigationDestination(
@@ -116,6 +127,11 @@ class _AppShell extends StatelessWidget {
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
             label: '設定',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.route_outlined),
+            selectedIcon: Icon(Icons.route),
+            label: '記録',
           ),
         ],
       ),

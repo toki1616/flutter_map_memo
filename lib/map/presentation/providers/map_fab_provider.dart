@@ -43,8 +43,9 @@ class MapFabNotifier extends Notifier<MapFabState> {
     final folder = ref.watch(folderProvider).valueOrNull;
     final locationAsync = ref.watch(locationStreamProvider);
     final loc = locationAsync.valueOrNull;
-    final currentLatLng =
-        loc != null ? LatLng(loc.latitude, loc.longitude) : null;
+    final currentLatLng = loc != null
+        ? LatLng(loc.latitude, loc.longitude)
+        : null;
 
     if (currentLatLng == null) {
       _isFollowingLocation = false;
@@ -82,7 +83,9 @@ class MapFabNotifier extends Notifier<MapFabState> {
     String memo = '',
     String colorHex = '#E63946',
   }) async {
-    await ref.read(addPinFromCenterUseCaseProvider).call(
+    await ref
+        .read(addPinFromCenterUseCaseProvider)
+        .call(
           AddPinFromCenterParams(
             position: position,
             title: title,
@@ -120,16 +123,12 @@ class MapFabNotifier extends Notifier<MapFabState> {
 
     final now = DateTime.now();
     final id = generateTrackId(now);
-    _currentTrackLog = TrackLog(
-      id: id,
-      startedAt: now,
-      points: const [],
-    );
+    _currentTrackLog = TrackLog(id: id, startedAt: now, points: const []);
 
     // 初回保存（空ポイントでもファイルを作る）
-    await ref.read(saveTrackUseCaseProvider).call(
-          SaveTrackParams(rootPath: folder.path, log: _currentTrackLog!),
-        );
+    await ref
+        .read(saveTrackUseCaseProvider)
+        .call(SaveTrackParams(rootPath: folder.path, log: _currentTrackLog!));
 
     _isTracking = true;
     state = state.copyWith(isTracking: true);
@@ -145,9 +144,9 @@ class MapFabNotifier extends Notifier<MapFabState> {
     if (folder == null) return;
 
     final finished = _currentTrackLog!.copyWith(endedAt: DateTime.now());
-    await ref.read(saveTrackUseCaseProvider).call(
-          SaveTrackParams(rootPath: folder.path, log: finished),
-        );
+    await ref
+        .read(saveTrackUseCaseProvider)
+        .call(SaveTrackParams(rootPath: folder.path, log: finished));
 
     _currentTrackLog = null;
     _isTracking = false;
@@ -176,7 +175,14 @@ class MapFabNotifier extends Notifier<MapFabState> {
       latitude: loc.latitude,
       longitude: loc.longitude,
       accuracy: loc.accuracy,
-      timestamp: DateTime.now(),
+      timestamp: loc.timestamp,
+      altitude: loc.altitude,
+      altitudeAccuracy: loc.altitudeAccuracy,
+      heading: loc.heading,
+      headingAccuracy: loc.headingAccuracy,
+      speed: loc.speed,
+      speedAccuracy: loc.speedAccuracy,
+      floor: loc.floor,
     );
 
     _currentTrackLog = _currentTrackLog!.copyWith(
@@ -184,9 +190,9 @@ class MapFabNotifier extends Notifier<MapFabState> {
     );
 
     // タスクキル対策: ポイント追加のたびにファイルへ即時書き込み
-    await ref.read(saveTrackUseCaseProvider).call(
-          SaveTrackParams(rootPath: rootPath, log: _currentTrackLog!),
-        );
+    await ref
+        .read(saveTrackUseCaseProvider)
+        .call(SaveTrackParams(rootPath: rootPath, log: _currentTrackLog!));
   }
 
   /// 現在記録中のトラックログを返す（map_screen でのリアルタイム表示用）

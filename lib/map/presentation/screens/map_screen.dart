@@ -57,6 +57,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // 保存済みトラックログ一覧
     final trackLogsAsync = ref.watch(trackListProvider);
     final trackLogs = trackLogsAsync.valueOrNull ?? [];
+    final displayedTrackIds = ref.watch(trackMapDisplayProvider);
+    final visibleTrackLogs = displayedTrackIds == null
+        ? trackLogs
+        : trackLogs.where((log) => displayedTrackIds.contains(log.id)).toList();
 
     // 現在記録中のトラックログ（リアルタイム表示用）
     final currentTrackLog = ref.watch(mapFabProvider.notifier).currentTrackLog;
@@ -70,12 +74,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return mapSourcesAsync.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (_, __) => const Scaffold(
-          body: Center(child: Text('マップの読み込みに失敗しました'))),
+      error: (_, __) =>
+          const Scaffold(body: Center(child: Text('マップの読み込みに失敗しました'))),
       data: (availableUrlMaps) {
         if (availableUrlMaps.isEmpty || currentUrlMap == null) {
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final folder = folderAsync.valueOrNull;
@@ -88,7 +93,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 value: currentUrlMap.id,
                 dropdownColor: Theme.of(context).colorScheme.surface,
                 style: textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface),
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 underline: const SizedBox(),
                 items: availableUrlMaps.map((map) {
                   return DropdownMenuItem<String>(
@@ -98,8 +104,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 }).toList(),
                 onChanged: (String? selectedId) {
                   if (selectedId != null) {
-                    final selected = availableUrlMaps
-                        .firstWhere((m) => m.id == selectedId);
+                    final selected = availableUrlMaps.firstWhere(
+                      (m) => m.id == selectedId,
+                    );
                     ref.read(mapSelectionProvider.notifier).selectMap(selected);
                   }
                 },
@@ -121,7 +128,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   minZoom: AppConstants.minZoom,
                   maxZoom: AppConstants.maxZoom,
                   onPositionChanged: (camera, hasGesture) {
-                    ref.read(mapCameraProvider.notifier).updateCamera(
+                    ref
+                        .read(mapCameraProvider.notifier)
+                        .updateCamera(
                           camera.center.latitude,
                           camera.center.longitude,
                           camera.zoom,
@@ -155,8 +164,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   Scalebar(
                     alignment: Alignment.topLeft,
-                    padding: EdgeInsets.only(
-                        top: 16 * scale, left: 16 * scale),
+                    padding: EdgeInsets.only(top: 16 * scale, left: 16 * scale),
                     textStyle: TextStyle(
                       color: Colors.black,
                       fontSize: 12 * scale,
@@ -167,18 +175,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
 
                   // ── 保存済みトラックログの表示 ──────────────────────────
-                  if (trackLogs.isNotEmpty)
+                  if (visibleTrackLogs.isNotEmpty)
                     PolylineLayer(
-                      polylines: trackLogs
+                      polylines: visibleTrackLogs
                           .where((log) => log.points.length >= 2)
-                          .map((log) => Polyline(
-                                points: log.points
-                                    .map((p) =>
-                                        LatLng(p.latitude, p.longitude))
-                                    .toList(),
-                                color: Colors.blue.withValues(alpha: 0.6),
-                                strokeWidth: 3,
-                              ))
+                          .map(
+                            (log) => Polyline(
+                              points: log.points
+                                  .map((p) => LatLng(p.latitude, p.longitude))
+                                  .toList(),
+                              color: Colors.blue.withValues(alpha: 0.6),
+                              strokeWidth: 3,
+                            ),
+                          )
                           .toList(),
                     ),
 
@@ -222,7 +231,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   alignment: Alignment.topRight,
                   child: Padding(
                     padding: EdgeInsets.only(
-                        top: 16 * scale, right: 16 * scale),
+                      top: 16 * scale,
+                      right: 16 * scale,
+                    ),
                     child: const Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -242,19 +253,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     child: Container(
                       color: Colors.red.withValues(alpha: 0.85),
                       padding: EdgeInsets.symmetric(
-                          vertical: 4 * scale, horizontal: 12 * scale),
+                        vertical: 4 * scale,
+                        horizontal: 12 * scale,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.fiber_manual_record,
-                              color: Colors.white, size: 14 * scale),
+                          Icon(
+                            Icons.fiber_manual_record,
+                            color: Colors.white,
+                            size: 14 * scale,
+                          ),
                           SizedBox(width: 6 * scale),
                           Text(
                             '記録中'
                             '${currentTrackLog != null ? '  ${currentTrackLog.points.length}pt  '
-                                '${currentTrackLog.totalDistanceKm.toStringAsFixed(2)}km' : ''}',
-                            style: textTheme.bodyMedium
-                                ?.copyWith(color: Colors.white),
+                                      '${currentTrackLog.totalDistanceKm.toStringAsFixed(2)}km' : ''}',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                            ),
                           ),
                         ],
                       ),
@@ -272,17 +289,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     color: AppTheme.accent.withValues(alpha: 0.92),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       child: Row(
                         children: [
-                          const Icon(Icons.folder_open_outlined,
-                              color: Colors.white, size: 18),
+                          const Icon(
+                            Icons.folder_open_outlined,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               '設定画面でマップフォルダを選択するとピンを追加できます',
-                              style: textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.white),
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
@@ -297,7 +320,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   alignment: Alignment.bottomRight,
                   child: Padding(
                     padding: EdgeInsets.only(
-                        bottom: 16 * scale, right: 16 * scale),
+                      bottom: 16 * scale,
+                      right: 16 * scale,
+                    ),
                     child: MapFabButtons(mapController: _mapController),
                   ),
                 ),
