@@ -20,6 +20,12 @@ class AppPathUtils {
     return await getApplicationDocumentsDirectory();
   }
 
+  /// ユーザーが外部フォルダを選択していない場合のデータ保存ルート。
+  /// この配下に save_data/map_data/ を作成してピン・トラックを保存する。
+  static Future<String> getApplicationDocumentsPath() async {
+    return (await _getAppDocsDir()).path;
+  }
+
   // アプリ内保存場所のルート（Documents/save_data）のパスを取得
   static Future<String> getSaveDataRootPath() async {
     final docsDir = await _getAppDocsDir();
