@@ -92,5 +92,28 @@ class TrackListNotifier extends AsyncNotifier<List<TrackLog>> {
 
 final trackListProvider =
     AsyncNotifierProvider<TrackListNotifier, List<TrackLog>>(
-  TrackListNotifier.new,
-);
+      TrackListNotifier.new,
+    );
+
+/// 地図に表示するトラックを管理する。
+///
+/// null の間は従来どおり全トラックを表示し、一覧画面から「地図に表示」を
+/// 実行した後は、指定された ID のトラックだけを表示する。
+class TrackMapDisplayNotifier extends StateNotifier<Set<String>?> {
+  TrackMapDisplayNotifier() : super(null);
+
+  void showOnly(Iterable<String> ids) {
+    state = ids.toSet();
+  }
+
+  void removeIds(Iterable<String> ids) {
+    if (state == null) return;
+    final updated = {...state!}..removeAll(ids);
+    state = updated;
+  }
+}
+
+final trackMapDisplayProvider =
+    StateNotifierProvider<TrackMapDisplayNotifier, Set<String>?>(
+      (ref) => TrackMapDisplayNotifier(),
+    );
