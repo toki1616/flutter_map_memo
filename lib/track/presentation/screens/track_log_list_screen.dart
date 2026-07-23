@@ -69,7 +69,8 @@ class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
     final selectedIds = ref.watch(trackListSelectionProvider);
     final selectedCount = selectedIds.length;
     final trackMapFilter = ref.watch(trackMapFilterProvider);
-    final displayPeriodLabel = ref
+    final displayPeriodLabel =
+        ref
             .watch(settingStorageProvider)
             .valueOrNull
             ?.trackDisplayDaysType
@@ -103,28 +104,42 @@ class _TrackLogListScreenState extends ConsumerState<TrackLogListScreen> {
                   0,
                 ),
                 child: Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.filter_alt_outlined),
-                    title: const Text('地図のトラック表示'),
-                    subtitle: Text(
-                      trackMapFilter.mode == TrackMapFilterMode.selectedOnly
-                          ? '選択した ${trackMapFilter.selectedIds.length}件を表示中'
-                          : '設定の表示期間: $displayPeriodLabel',
+                  child: Padding(
+                    padding: EdgeInsets.all(12 * scale),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.filter_alt_outlined),
+                            SizedBox(width: 8),
+                            Text('地図のトラック表示'),
+                          ],
+                        ),
+                        SizedBox(height: 4 * scale),
+                        Text(
+                          trackMapFilter.mode == TrackMapFilterMode.selectedOnly
+                              ? '選択した ${trackMapFilter.selectedIds.length}件を表示中'
+                              : '設定の表示期間: $displayPeriodLabel',
+                        ),
+                        if (trackMapFilter.mode ==
+                            TrackMapFilterMode.selectedOnly)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () {
+                                ref
+                                    .read(trackMapFilterProvider.notifier)
+                                    .showSettingsPeriod();
+                                ref
+                                    .read(trackListSelectionProvider.notifier)
+                                    .clear();
+                              },
+                              child: const Text('選択を解除して期間設定に戻す'),
+                            ),
+                          ),
+                      ],
                     ),
-                    trailing: trackMapFilter.mode ==
-                            TrackMapFilterMode.selectedOnly
-                        ? TextButton(
-                            onPressed: () {
-                              ref
-                                  .read(trackMapFilterProvider.notifier)
-                                  .showSettingsPeriod();
-                              ref
-                                  .read(trackListSelectionProvider.notifier)
-                                  .clear();
-                            },
-                            child: const Text('選択を解除して期間設定に戻す'),
-                          )
-                        : null,
                   ),
                 ),
               ),
