@@ -26,9 +26,11 @@ final saveTrackUseCaseProvider = Provider(
 final deleteTrackUseCaseProvider = Provider(
   (ref) => DeleteTrackUseCase(ref.watch(trackRepositoryProvider)),
 );
-final deleteOldTracksUseCaseProvider = Provider(
-  (ref) => DeleteOldTracksUseCase(ref.watch(trackRepositoryProvider)),
-);
+// 機能: 指定日数より古いログを削除する UseCase を DI する。
+// 状態: 自動削除を停止中のため未使用。
+// final deleteOldTracksUseCaseProvider = Provider(
+//   (ref) => DeleteOldTracksUseCase(ref.watch(trackRepositoryProvider)),
+// );
 
 // ── 保存済みトラックログ一覧 ───────────────────────────────────────────────
 
@@ -76,18 +78,19 @@ class TrackListNotifier extends AsyncNotifier<List<TrackLog>> {
     );
   }
 
-  /// 古いログを設定に従って削除する（アプリ起動時や設定変更時に呼ぶ）
-  Future<void> deleteOldLogs() async {
-    final folder = ref.read(folderProvider).valueOrNull;
-    if (folder == null) return;
-    final settings = ref.read(settingStorageProvider).valueOrNull;
-    final days = settings?.trackRetentionDays;
-    if (days == null || days <= 0) return;
-    await ref
-        .read(deleteOldTracksUseCaseProvider)
-        .call(DeleteOldTracksParams(rootPath: folder.path, days: days));
-    await reload();
-  }
+  // 機能: 設定の日数より古いログを削除して、一覧を再読み込みする。
+  // 状態: 自動削除を停止中。ログは一覧画面でユーザーが明示的に削除する。
+  // Future<void> deleteOldLogs() async {
+  //   final folder = ref.read(folderProvider).valueOrNull;
+  //   if (folder == null) return;
+  //   final settings = ref.read(settingStorageProvider).valueOrNull;
+  //   final days = settings?.trackRetentionDays;
+  //   if (days == null || days <= 0) return;
+  //   await ref
+  //       .read(deleteOldTracksUseCaseProvider)
+  //       .call(DeleteOldTracksParams(rootPath: folder.path, days: days));
+  //   await reload();
+  // }
 }
 
 final trackListProvider =

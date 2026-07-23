@@ -28,8 +28,10 @@ enum TrackDisplayDaysType {
   const TrackDisplayDaysType(this.label, this.days);
 }
 
-/// トラックログの保存期間（この日数より古いファイルを自動削除）を管理する列挙型
-/// days: 何日前までのログを保存するか（0 = 無制限）
+/*
+ * 機能: 保存期間（日数）を選択し、その日数より古いトラックログを自動削除する。
+ * 状態: ユーザーが一覧から明示的に削除する運用へ変更したため停止中。
+ * 再導入する場合は SettingStorageData、設定画面、TrackLocalDataSource も併せて有効化する。
 enum TrackRetentionDaysType {
   unlimited('無制限', 0),
   week1('1週間', 7),
@@ -42,3 +44,4 @@ enum TrackRetentionDaysType {
   final int days;
   const TrackRetentionDaysType(this.label, this.days);
 }
+*/

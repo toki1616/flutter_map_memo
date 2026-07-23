@@ -22,8 +22,9 @@ abstract class TrackLocalDataSource {
   /// IDに対応するファイルを削除する
   Future<void> delete(String rootPath, String id);
 
-  /// 指定日数より古いファイルを一括削除する
-  Future<void> deleteOlderThan(String rootPath, int days);
+  // 機能: 指定日数より古いトラックログファイルを削除する。
+  // 状態: 自動削除を停止中のため未使用。
+  // Future<void> deleteOlderThan(String rootPath, int days);
 }
 
 class TrackLocalDataSourceImpl implements TrackLocalDataSource {
@@ -126,50 +127,39 @@ class TrackLocalDataSourceImpl implements TrackLocalDataSource {
     if (await file.exists()) await file.delete();
   }
 
+  /*
+   * 機能: startedAt が指定日数より前のトラックログファイルを削除する。
+   * 状態: 自動削除を停止中。再導入する場合は、SAF URI と通常パスの両方を扱う。
   @override
   Future<void> deleteOlderThan(String rootPath, int days) async {
+    final threshold = DateTime.now().subtract(Duration(days: days));
     if (AndroidSafStorageService.isSafUri(rootPath)) {
-      final threshold = DateTime.now().subtract(Duration(days: days));
-      final entries = await AndroidSafStorageService.listEntries(
-        rootPath,
-        _trackRelativeDirectory(),
-      );
+      final entries = await AndroidSafStorageService.listEntries(rootPath, _trackRelativeDirectory());
       for (final entry in entries.where(
         (entry) => !entry.isDirectory && entry.name.endsWith('.json'),
       )) {
-        try {
-          final relativePath = p.join(_trackRelativeDirectory(), entry.name);
-          final content = await AndroidSafStorageService.readFile(
-            rootPath,
-            relativePath,
-          );
-          if (content == null) continue;
-          final model = TrackLogModel.fromJson(jsonDecode(content));
-          if (DateTime.parse(model.startedAt).isBefore(threshold)) {
-            await AndroidSafStorageService.deleteFile(rootPath, relativePath);
-          }
-        } catch (_) {
-          // 壊れたファイルはスキップ
+        final relativePath = p.join(_trackRelativeDirectory(), entry.name);
+        final content = await AndroidSafStorageService.readFile(rootPath, relativePath);
+        if (content == null) continue;
+        final model = TrackLogModel.fromJson(jsonDecode(content));
+        if (DateTime.parse(model.startedAt).isBefore(threshold)) {
+          await AndroidSafStorageService.deleteFile(rootPath, relativePath);
         }
       }
       return;
     }
     final dir = _trackDir(rootPath);
     if (!await dir.exists()) return;
-
-    final threshold = DateTime.now().subtract(Duration(days: days));
     await for (final entity in dir.list()) {
       if (entity is File && entity.path.endsWith('.json')) {
-        try {
-          final content = await entity.readAsString();
-          final json = jsonDecode(content) as Map<String, dynamic>;
-          final model = TrackLogModel.fromJson(json);
-          final startedAt = DateTime.parse(model.startedAt);
-          if (startedAt.isBefore(threshold)) {
-            await entity.delete();
-          }
-        } catch (_) {}
+        final model = TrackLogModel.fromJson(
+          jsonDecode(await entity.readAsString()) as Map<String, dynamic>,
+        );
+        if (DateTime.parse(model.startedAt).isBefore(threshold)) {
+          await entity.delete();
+        }
       }
     }
   }
+  */
 }

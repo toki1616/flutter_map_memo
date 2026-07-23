@@ -19,11 +19,13 @@ class DeleteTrackParams {
   const DeleteTrackParams({required this.rootPath, required this.id});
 }
 
-class DeleteOldTracksParams {
-  final String rootPath;
-  final int days;
-  const DeleteOldTracksParams({required this.rootPath, required this.days});
-}
+// 機能: 自動削除の対象フォルダと保存日数を渡すパラメータ。
+// 状態: 自動削除を停止中のため未使用。
+// class DeleteOldTracksParams {
+//   final String rootPath;
+//   final int days;
+//   const DeleteOldTracksParams({required this.rootPath, required this.days});
+// }
 
 class LoadAllTracksUseCase
     implements UseCase<List<TrackLog>, TrackRootPathParams> {
@@ -50,10 +52,12 @@ class DeleteTrackUseCase implements UseCase<void, DeleteTrackParams> {
       _repository.delete(params.rootPath, params.id);
 }
 
-class DeleteOldTracksUseCase implements UseCase<void, DeleteOldTracksParams> {
-  final TrackRepository _repository;
-  DeleteOldTracksUseCase(this._repository);
-  @override
-  Future<void> call(DeleteOldTracksParams params) =>
-      _repository.deleteOlderThan(params.rootPath, params.days);
-}
+// 機能: 指定日数より古いトラックログの削除を Repository へ委譲する。
+// 状態: 自動削除を停止中のため未使用。
+// class DeleteOldTracksUseCase implements UseCase<void, DeleteOldTracksParams> {
+//   final TrackRepository _repository;
+//   DeleteOldTracksUseCase(this._repository);
+//   @override
+//   Future<void> call(DeleteOldTracksParams params) =>
+//       _repository.deleteOlderThan(params.rootPath, params.days);
+// }
