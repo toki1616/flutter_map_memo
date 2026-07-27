@@ -45,5 +45,36 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+    <!-- ファイル -->
+    <key>UIFileSharingEnabled</key>
+    <true/>
+
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+
+	<key>NSDocumentsFolderUsageDescription</key>
+    <string>マップタイルとピンデータのフォルダにアクセスします</string>
+
+    <key>UIFileSharingEnabled</key>
+    <true/>
+
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+
+    <!-- 位置情報 -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>現在地をマップに表示し、トラックログを記録するために位置情報を使用します。</string>
+
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>アプリがバックグラウンドにいる間も、トラックログを継続して記録するために位置情報を使用します。</string>
+
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>現在地をマップに表示し、トラックログを継続して記録するために位置情報を使用します。</string>
+
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+    </array>
 </dict>
 </plist>
