@@ -49,7 +49,7 @@ class MapCameraNotifier extends StateNotifier<MapCameraState> {
       longitude: longitude,
       zoom: zoom,
     );
-    
+
     state = updated;
 
     // 非同期で位置情報ストレージにのみ書き込みを実施（settings.jsonは触らない）
